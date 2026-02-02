@@ -34,6 +34,7 @@ class WikipediaScraper:
         self.municipalities = []
         self.max_retries = 3
         self.retry_delay = 2  # seconds
+        self.last_error = None  # Store last error for debugging
 
         # Set country configuration
         if country_config:
@@ -136,7 +137,11 @@ class WikipediaScraper:
         if not html_content:
             return []
 
-        soup = BeautifulSoup(html_content, 'lxml')
+        # Use html.parser (built-in) instead of lxml for better .exe compatibility
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+        except:
+            soup = BeautifulSoup(html_content, 'html.parser')
         municipalities = []
 
         # Find all tables - municipality data is usually in wikitables
@@ -218,6 +223,7 @@ class WikipediaScraper:
         }
 
         html_content = None
+        last_error = None
         for attempt in range(self.max_retries):
             try:
                 response = thread_session.get(
@@ -231,11 +237,17 @@ class WikipediaScraper:
                 if "parse" in data and "text" in data["parse"]:
                     html_content = data["parse"]["text"]["*"]
                     break
+                else:
+                    last_error = f"No parse data in response for {region}"
             except Exception as e:
+                last_error = str(e)
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_delay * (attempt + 1))
 
         thread_session.close()
+
+        if last_error:
+            self.last_error = last_error
 
         if html_content:
             municipalities = self.parse_municipalities_table(html_content, region)

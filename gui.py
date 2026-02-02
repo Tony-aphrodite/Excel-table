@@ -209,6 +209,25 @@ class MunicipalityGeneratorGUI:
                 return
 
             # Step 1: Scrape data (0-70%)
+            self.update_status(f"Probando conexión a Wikipedia...")
+
+            # Test connection first
+            try:
+                import requests
+                test_response = requests.get(
+                    country_config.get("wikipedia_api"),
+                    params={"action": "query", "format": "json"},
+                    timeout=10
+                )
+                test_response.raise_for_status()
+            except Exception as e:
+                self.show_error(
+                    f"No se puede conectar a Wikipedia.\n\n"
+                    f"Error: {str(e)}\n\n"
+                    f"URL: {country_config.get('wikipedia_api')}"
+                )
+                return
+
             self.update_status(f"Descargando datos de Wikipedia ({country_name})...")
             scraper = WikipediaScraper(country_config=country_config)
 
@@ -231,13 +250,17 @@ class MunicipalityGeneratorGUI:
 
             # Check if we got any data
             if not municipalities:
+                error_detail = ""
+                if hasattr(scraper, 'last_error') and scraper.last_error:
+                    error_detail = f"\n\nDetalle: {scraper.last_error}"
+
                 self.show_error(
                     "No se encontraron municipios.\n\n"
                     "Posibles causas:\n"
                     "• Sin conexión a internet\n"
                     "• Wikipedia no está disponible\n"
                     "• Firewall bloqueando conexiones\n\n"
-                    "Verifique su conexión e intente de nuevo."
+                    f"Verifique su conexión e intente de nuevo.{error_detail}"
                 )
                 return
 

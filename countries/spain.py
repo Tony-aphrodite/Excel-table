@@ -21,18 +21,24 @@ SPAIN_CONFIG = {
         "urban": "Núcleo Urbano",
     },
 
-    # Regions/Provinces
+    # Regions/Provinces (TEST MODE: 6 provinces ~1000 municipalities)
+    # TODO: Restore full list after testing
     "regions": [
-        "A Coruña", "Álava", "Albacete", "Alicante", "Almería", "Asturias",
-        "Ávila", "Badajoz", "Barcelona", "Bizkaia", "Burgos", "Cáceres",
-        "Cádiz", "Cantabria", "Castellón", "Ciudad Real", "Córdoba", "Cuenca",
-        "Gipuzkoa", "Girona", "Granada", "Guadalajara", "Huelva", "Huesca",
-        "Illes Balears", "Jaén", "La Rioja", "Las Palmas", "León", "Lleida",
-        "Lugo", "Madrid", "Málaga", "Murcia", "Navarra", "Ourense", "Palencia",
-        "Pontevedra", "Salamanca", "Santa Cruz de Tenerife", "Segovia", "Sevilla",
-        "Soria", "Tarragona", "Teruel", "Toledo", "Valencia", "Valladolid",
-        "Zamora", "Zaragoza"
+        "Madrid", "Barcelona", "Valencia", "Sevilla", "Málaga", "Murcia"
     ],
+
+    # FULL LIST (uncomment after testing):
+    # "regions": [
+    #     "A Coruña", "Álava", "Albacete", "Alicante", "Almería", "Asturias",
+    #     "Ávila", "Badajoz", "Barcelona", "Bizkaia", "Burgos", "Cáceres",
+    #     "Cádiz", "Cantabria", "Castellón", "Ciudad Real", "Córdoba", "Cuenca",
+    #     "Gipuzkoa", "Girona", "Granada", "Guadalajara", "Huelva", "Huesca",
+    #     "Illes Balears", "Jaén", "La Rioja", "Las Palmas", "León", "Lleida",
+    #     "Lugo", "Madrid", "Málaga", "Murcia", "Navarra", "Ourense", "Palencia",
+    #     "Pontevedra", "Salamanca", "Santa Cruz de Tenerife", "Segovia", "Sevilla",
+    #     "Soria", "Tarragona", "Teruel", "Toledo", "Valencia", "Valladolid",
+    #     "Zamora", "Zaragoza"
+    # ],
 
     # Wikipedia page title mappings
     "region_page_mappings": {
