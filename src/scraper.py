@@ -204,8 +204,38 @@ class WikipediaScraper:
 
     def _fetch_region_data(self, region):
         """Fetch and parse data for a single region (used by thread pool)"""
+        # Create a new session for each thread to avoid thread-safety issues
+        thread_session = requests.Session()
+        thread_session.headers.update({"User-Agent": USER_AGENT})
+
         page_title = self.get_region_page_title(region)
-        html_content = self.fetch_page_html(page_title)
+
+        params = {
+            "action": "parse",
+            "page": page_title,
+            "format": "json",
+            "prop": "text"
+        }
+
+        html_content = None
+        for attempt in range(self.max_retries):
+            try:
+                response = thread_session.get(
+                    self.api_url,
+                    params=params,
+                    timeout=60
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if "parse" in data and "text" in data["parse"]:
+                    html_content = data["parse"]["text"]["*"]
+                    break
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (attempt + 1))
+
+        thread_session.close()
 
         if html_content:
             municipalities = self.parse_municipalities_table(html_content, region)
@@ -228,30 +258,54 @@ class WikipediaScraper:
                 if progress_callback:
                     progress_callback(completed_count, total_regions, region)
 
-        # Use ThreadPoolExecutor for parallel fetching
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            # Submit all tasks
-            future_to_region = {
-                executor.submit(self._fetch_region_data, region): region
-                for region in self.regions
-            }
+        try:
+            # Use ThreadPoolExecutor for parallel fetching
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                # Submit all tasks
+                future_to_region = {
+                    executor.submit(self._fetch_region_data, region): region
+                    for region in self.regions
+                }
 
-            # Process completed tasks as they finish
-            for future in as_completed(future_to_region):
-                result = future.result()
-                region = result['region']
+                # Process completed tasks as they finish
+                for future in as_completed(future_to_region):
+                    try:
+                        result = future.result(timeout=120)
+                        region = result['region']
 
+                        if result['success']:
+                            municipalities = result['municipalities']
+                            with lock:
+                                all_municipalities.extend(municipalities)
+                                self.municipalities = all_municipalities.copy()
+                            print(f"  Found {len(municipalities)} municipalities in {region}")
+                        else:
+                            print(f"  Warning: Could not fetch data for {region}")
+                            failed_regions.append(region)
+
+                        update_progress(region, len(all_municipalities))
+                    except Exception as e:
+                        print(f"  Error processing region: {e}")
+                        failed_regions.append(future_to_region.get(future, "unknown"))
+
+        except Exception as e:
+            print(f"  Parallel processing failed: {e}")
+            print("  Falling back to sequential processing...")
+            # Fallback to sequential processing
+            all_municipalities = []
+            for idx, region in enumerate(self.regions):
+                if progress_callback:
+                    progress_callback(idx + 1, total_regions, region)
+
+                result = self._fetch_region_data(region)
                 if result['success']:
-                    municipalities = result['municipalities']
-                    with lock:
-                        all_municipalities.extend(municipalities)
-                        self.municipalities = all_municipalities.copy()
-                    print(f"  Found {len(municipalities)} municipalities in {region}")
+                    all_municipalities.extend(result['municipalities'])
+                    self.municipalities = all_municipalities.copy()
+                    print(f"  Found {len(result['municipalities'])} municipalities in {region}")
                 else:
-                    print(f"  Warning: Could not fetch data for {region}")
                     failed_regions.append(region)
 
-                update_progress(region, len(all_municipalities))
+                time.sleep(0.5)  # Small delay for sequential
 
         # Report failed regions
         if failed_regions:

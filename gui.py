@@ -214,12 +214,17 @@ class MunicipalityGeneratorGUI:
 
             total_regions = len(country_config.get("regions", []))
 
+            # Thread-safe progress update function
+            def do_progress_update(p, c, t, r, cnt):
+                self.progress_var.set(p)
+                self.status_var.set(f"[{c}/{t}] {r}... ({cnt} municipios)")
+                self.root.update_idletasks()
+
             def progress_callback(current, total, region):
                 progress = (current / total) * 70
-                self.progress_var.set(progress)
-                # Also show how many municipalities collected so far
                 count = len(scraper.municipalities) if hasattr(scraper, 'municipalities') else 0
-                self.update_status(f"[{current}/{total}] {region}... ({count} municipios)")
+                # Schedule GUI update on main thread
+                self.root.after(0, lambda: do_progress_update(progress, current, total, region, count))
 
             municipalities = scraper.scrape_all_municipalities(progress_callback=progress_callback)
             self.collected_municipalities = municipalities
