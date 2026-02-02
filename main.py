@@ -18,7 +18,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import (
     POPULATION_THRESHOLD,
-    EQUIPMENT_DIVISOR,
+    EQUIPMENT_DIVISOR_URBAN,
+    EQUIPMENT_DIVISOR_RURAL,
     DATA_DIR,
     OUTPUT_FULL_EXCEL,
     OUTPUT_SIMPLE_EXCEL,
@@ -34,7 +35,8 @@ def print_banner():
     print("=" * 60)
     print("  Spanish Municipalities Excel Generator")
     print(f"  Urban: >= {POPULATION_THRESHOLD} hab | Rural: < {POPULATION_THRESHOLD} hab")
-    print(f"  Equipment = Population / {EQUIPMENT_DIVISOR}")
+    print(f"  Urban Equipment = Population / {EQUIPMENT_DIVISOR_URBAN}")
+    print(f"  Rural Equipment = Population / {EQUIPMENT_DIVISOR_RURAL}")
     print("=" * 60)
     print()
 
@@ -42,20 +44,20 @@ def print_banner():
 def print_statistics(municipalities):
     """Print statistics about the data"""
     total = len(municipalities)
-    urban = sum(1 for m in municipalities if (m.get('population') or 0) >= POPULATION_THRESHOLD)
-    rural = total - urban
+    urban_count = sum(1 for m in municipalities if (m.get('population') or 0) >= POPULATION_THRESHOLD)
+    rural_count = total - urban_count
 
     total_pop = sum(m.get('population') or 0 for m in municipalities)
-    total_equipos = round(total_pop / EQUIPMENT_DIVISOR, 2)
+    urban_pop = sum(m.get('population') or 0 for m in municipalities if (m.get('population') or 0) >= POPULATION_THRESHOLD)
+    rural_pop = total_pop - urban_pop
 
     print("\n" + "=" * 50)
     print("  Statistics")
     print("=" * 50)
     print(f"  Total municipalities: {total}")
-    print(f"  Urban (>= {POPULATION_THRESHOLD}): {urban} ({round(urban/total*100, 1)}%)")
-    print(f"  Rural (< {POPULATION_THRESHOLD}): {rural} ({round(rural/total*100, 1)}%)")
+    print(f"  Urban (>= {POPULATION_THRESHOLD}): {urban_count} ({round(urban_count/total*100, 1)}%)")
+    print(f"  Rural (< {POPULATION_THRESHOLD}): {rural_count} ({round(rural_count/total*100, 1)}%)")
     print(f"  Total population: {total_pop:,}")
-    print(f"  Total equipment: {total_equipos:,}")
     print("=" * 50)
 
 
