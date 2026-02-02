@@ -214,17 +214,22 @@ class MunicipalityGeneratorGUI:
             # Test connection first
             try:
                 import requests
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
                 test_response = requests.get(
                     country_config.get("wikipedia_api"),
                     params={"action": "query", "format": "json"},
-                    timeout=10
+                    timeout=30,
+                    verify=False  # Skip SSL verification for .exe compatibility
                 )
                 test_response.raise_for_status()
             except Exception as e:
                 self.show_error(
                     f"No se puede conectar a Wikipedia.\n\n"
                     f"Error: {str(e)}\n\n"
-                    f"URL: {country_config.get('wikipedia_api')}"
+                    f"URL: {country_config.get('wikipedia_api')}\n\n"
+                    f"Verifique su conexión a internet y firewall."
                 )
                 return
 

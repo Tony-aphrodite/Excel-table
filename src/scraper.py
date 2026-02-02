@@ -11,6 +11,10 @@ import sys
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+import urllib3
+
+# Disable SSL warnings for .exe compatibility
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import REQUEST_DELAY, USER_AGENT
@@ -109,7 +113,8 @@ class WikipediaScraper:
                 response = self.session.get(
                     self.api_url,
                     params=params,
-                    timeout=60  # Increased timeout
+                    timeout=60,
+                    verify=False  # Skip SSL verification for .exe compatibility
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -229,7 +234,8 @@ class WikipediaScraper:
                 response = thread_session.get(
                     self.api_url,
                     params=params,
-                    timeout=60
+                    timeout=60,
+                    verify=False  # Skip SSL verification for .exe compatibility
                 )
                 response.raise_for_status()
                 data = response.json()
