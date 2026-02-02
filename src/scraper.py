@@ -1,6 +1,7 @@
 """
 Wikipedia Scraper for Municipality Data
 Extracts municipality information from Wikipedia for multiple countries
+Uses parallel requests for faster processing
 """
 import requests
 from bs4 import BeautifulSoup
@@ -8,9 +9,14 @@ import time
 import re
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import REQUEST_DELAY, USER_AGENT
+
+# Number of parallel workers (don't set too high to avoid rate limiting)
+MAX_WORKERS = 5
 
 
 class WikipediaScraper:
@@ -196,29 +202,56 @@ class WikipediaScraper:
         except Exception as e:
             return None
 
+    def _fetch_region_data(self, region):
+        """Fetch and parse data for a single region (used by thread pool)"""
+        page_title = self.get_region_page_title(region)
+        html_content = self.fetch_page_html(page_title)
+
+        if html_content:
+            municipalities = self.parse_municipalities_table(html_content, region)
+            return {'region': region, 'municipalities': municipalities, 'success': True}
+        else:
+            return {'region': region, 'municipalities': [], 'success': False}
+
     def scrape_all_municipalities(self, progress_callback=None):
-        """Scrape municipalities for all regions in the country"""
+        """Scrape municipalities for all regions in the country using parallel requests"""
         all_municipalities = []
         total_regions = len(self.regions)
         failed_regions = []
+        completed_count = 0
+        lock = threading.Lock()
 
-        for idx, region in enumerate(self.regions):
-            if progress_callback:
-                progress_callback(idx + 1, total_regions, region)
+        def update_progress(region, count):
+            nonlocal completed_count
+            with lock:
+                completed_count += 1
+                if progress_callback:
+                    progress_callback(completed_count, total_regions, region)
 
-            page_title = self.get_region_page_title(region)
-            html_content = self.fetch_page_html(page_title)
+        # Use ThreadPoolExecutor for parallel fetching
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            # Submit all tasks
+            future_to_region = {
+                executor.submit(self._fetch_region_data, region): region
+                for region in self.regions
+            }
 
-            if html_content:
-                municipalities = self.parse_municipalities_table(html_content, region)
-                all_municipalities.extend(municipalities)
-                print(f"  Found {len(municipalities)} municipalities in {region}")
-            else:
-                print(f"  Warning: Could not fetch data for {region}")
-                failed_regions.append(region)
+            # Process completed tasks as they finish
+            for future in as_completed(future_to_region):
+                result = future.result()
+                region = result['region']
 
-            # Rate limiting - increased delay to avoid blocks
-            time.sleep(REQUEST_DELAY + 0.5)
+                if result['success']:
+                    municipalities = result['municipalities']
+                    with lock:
+                        all_municipalities.extend(municipalities)
+                        self.municipalities = all_municipalities.copy()
+                    print(f"  Found {len(municipalities)} municipalities in {region}")
+                else:
+                    print(f"  Warning: Could not fetch data for {region}")
+                    failed_regions.append(region)
+
+                update_progress(region, len(all_municipalities))
 
         # Report failed regions
         if failed_regions:
