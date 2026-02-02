@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spanish Municipalities Excel Generator - GUI Version
+Multi-Country Municipalities Excel Generator - GUI Version
 Simple graphical interface for non-technical users
 """
 import tkinter as tk
@@ -21,6 +21,7 @@ from config import (
     OUTPUT_SIMPLE_EXCEL,
     OUTPUT_WORD
 )
+from countries import get_country_config, get_available_countries
 from src.scraper import WikipediaScraper
 from src.excel_generator import ExcelGenerator
 from src.word_generator import WordGenerator
@@ -29,8 +30,8 @@ from src.word_generator import WordGenerator
 class MunicipalityGeneratorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Generador de Municipios de España")
-        self.root.geometry("550x450")
+        self.root.title("Generador de Municipios - Multi-País")
+        self.root.geometry("550x520")
         self.root.resizable(False, False)
 
         # Center the window
@@ -41,6 +42,12 @@ class MunicipalityGeneratorGUI:
         self.progress_var = tk.DoubleVar()
         self.status_var = tk.StringVar(value="Listo para comenzar")
         self.collected_municipalities = []
+        self.selected_country = tk.StringVar()
+
+        # Set default country
+        available_countries = get_available_countries()
+        if available_countries:
+            self.selected_country.set(available_countries[0])
 
         # Create UI
         self.create_widgets()
@@ -63,10 +70,10 @@ class MunicipalityGeneratorGUI:
         # Title
         title_label = ttk.Label(
             main_frame,
-            text="Generador de Municipios de España",
+            text="Generador de Municipios",
             font=('Helvetica', 16, 'bold')
         )
-        title_label.pack(pady=(0, 10))
+        title_label.pack(pady=(0, 5))
 
         # Subtitle
         subtitle_label = ttk.Label(
@@ -74,11 +81,40 @@ class MunicipalityGeneratorGUI:
             text="Genera archivos Excel y Word con datos de municipios",
             font=('Helvetica', 10)
         )
-        subtitle_label.pack(pady=(0, 20))
+        subtitle_label.pack(pady=(0, 15))
+
+        # Country selection frame
+        country_frame = ttk.LabelFrame(main_frame, text="Selección de País", padding="10")
+        country_frame.pack(fill=tk.X, pady=(0, 15))
+
+        # Country dropdown
+        country_label = ttk.Label(country_frame, text="País:")
+        country_label.pack(side=tk.LEFT, padx=(0, 10))
+
+        available_countries = get_available_countries()
+        self.country_combo = ttk.Combobox(
+            country_frame,
+            textvariable=self.selected_country,
+            values=available_countries,
+            state="readonly",
+            width=25
+        )
+        self.country_combo.pack(side=tk.LEFT)
+        self.country_combo.bind('<<ComboboxSelected>>', self.on_country_change)
+
+        # Country info label
+        self.country_info_label = ttk.Label(
+            country_frame,
+            text="",
+            font=('Helvetica', 9),
+            foreground="gray"
+        )
+        self.country_info_label.pack(side=tk.LEFT, padx=(15, 0))
+        self.update_country_info()
 
         # Info frame
         info_frame = ttk.LabelFrame(main_frame, text="Configuración", padding="10")
-        info_frame.pack(fill=tk.X, pady=(0, 20))
+        info_frame.pack(fill=tk.X, pady=(0, 15))
 
         ttk.Label(info_frame, text=f"• Umbral Urban/Rural: {POPULATION_THRESHOLD} habitantes").pack(anchor=tk.W)
         ttk.Label(info_frame, text=f"• Equipos Urbano: Población / {EQUIPMENT_DIVISOR_URBAN}").pack(anchor=tk.W)
@@ -91,7 +127,7 @@ class MunicipalityGeneratorGUI:
             command=self.start_generation,
             style='Accent.TButton'
         )
-        self.run_button.pack(pady=20, ipadx=20, ipady=10)
+        self.run_button.pack(pady=15, ipadx=20, ipady=10)
 
         # Progress bar
         self.progress_bar = ttk.Progressbar(
@@ -109,7 +145,7 @@ class MunicipalityGeneratorGUI:
             font=('Helvetica', 10),
             wraplength=450
         )
-        self.status_label.pack(pady=(0, 20))
+        self.status_label.pack(pady=(0, 15))
 
         # Output info
         output_frame = ttk.LabelFrame(main_frame, text="Archivos de salida", padding="10")
@@ -128,6 +164,19 @@ class MunicipalityGeneratorGUI:
         )
         self.open_folder_button.pack(pady=10)
 
+    def on_country_change(self, event=None):
+        """Handle country selection change"""
+        self.update_country_info()
+
+    def update_country_info(self):
+        """Update the country info label"""
+        country_name = self.selected_country.get()
+        config = get_country_config(country_name)
+        if config:
+            num_regions = len(config.get("regions", []))
+            lang = config.get("language", "?")
+            self.country_info_label.config(text=f"({num_regions} regiones, Wikipedia {lang})")
+
     def start_generation(self):
         """Start the generation process in a separate thread"""
         if self.is_running:
@@ -135,6 +184,7 @@ class MunicipalityGeneratorGUI:
 
         self.is_running = True
         self.run_button.config(state=tk.DISABLED)
+        self.country_combo.config(state=tk.DISABLED)
         self.progress_var.set(0)
         self.status_var.set("Iniciando...")
         self.collected_municipalities = []
@@ -150,18 +200,26 @@ class MunicipalityGeneratorGUI:
             # Ensure data directory exists
             os.makedirs(DATA_DIR, exist_ok=True)
 
+            # Get selected country config
+            country_name = self.selected_country.get()
+            country_config = get_country_config(country_name)
+
+            if not country_config:
+                self.show_error(f"No se encontró configuración para {country_name}")
+                return
+
             # Step 1: Scrape data (0-70%)
-            self.update_status("Descargando datos de Wikipedia (esto puede tardar 1-2 minutos)...")
-            scraper = WikipediaScraper()
+            self.update_status(f"Descargando datos de Wikipedia ({country_name})...")
+            scraper = WikipediaScraper(country_config=country_config)
 
-            total_provinces = 50
+            total_regions = len(country_config.get("regions", []))
 
-            def progress_callback(current, total, province):
+            def progress_callback(current, total, region):
                 progress = (current / total) * 70
                 self.progress_var.set(progress)
                 # Also show how many municipalities collected so far
                 count = len(scraper.municipalities) if hasattr(scraper, 'municipalities') else 0
-                self.update_status(f"[{current}/{total}] {province}... ({count} municipios)")
+                self.update_status(f"[{current}/{total}] {region}... ({count} municipios)")
 
             municipalities = scraper.scrape_all_municipalities(progress_callback=progress_callback)
             self.collected_municipalities = municipalities
@@ -179,14 +237,14 @@ class MunicipalityGeneratorGUI:
                 return
 
             # Even if we got partial data, continue
-            if len(municipalities) < 7000:
-                self.update_status(f"⚠ Datos parciales: {len(municipalities)} municipios (esperados ~8000)")
+            if len(municipalities) < total_regions * 50:  # Rough estimate
+                self.update_status(f"⚠ Datos parciales: {len(municipalities)} municipios")
 
             # Step 2: Generate Excel files (70-90%)
             self.progress_var.set(75)
             self.update_status(f"Generando Excel ({len(municipalities)} municipios)...")
 
-            excel_generator = ExcelGenerator()
+            excel_generator = ExcelGenerator(country_config=country_config)
             excel_generator.create_full_excel(municipalities)
 
             self.progress_var.set(85)
@@ -196,18 +254,19 @@ class MunicipalityGeneratorGUI:
             self.progress_var.set(92)
             self.update_status("Generando documento Word...")
 
-            word_generator = WordGenerator()
+            word_generator = WordGenerator(country_config=country_config)
             word_generator.create_word_document(municipalities)
 
             # Complete
             self.progress_var.set(100)
-            self.update_status(f"✓ Completado: {len(municipalities)} municipios procesados")
+            self.update_status(f"✓ Completado: {len(municipalities)} municipios de {country_name}")
             self.open_folder_button.config(state=tk.NORMAL)
 
             # Show success message
             self.root.after(100, lambda: messagebox.showinfo(
                 "Completado",
                 f"Archivos generados exitosamente!\n\n"
+                f"• País: {country_name}\n"
                 f"• {len(municipalities)} municipios procesados\n"
                 f"• Archivos guardados en: data/\n\n"
                 f"Haga clic en 'Abrir carpeta de salida' para ver los archivos."
@@ -218,11 +277,14 @@ class MunicipalityGeneratorGUI:
             # If we collected some data, try to save it anyway
             if self.collected_municipalities and len(self.collected_municipalities) > 0:
                 try:
+                    country_name = self.selected_country.get()
+                    country_config = get_country_config(country_name)
+
                     self.update_status(f"Error parcial. Guardando {len(self.collected_municipalities)} municipios...")
-                    excel_generator = ExcelGenerator()
+                    excel_generator = ExcelGenerator(country_config=country_config)
                     excel_generator.create_full_excel(self.collected_municipalities)
                     excel_generator.create_simple_excel(self.collected_municipalities)
-                    word_generator = WordGenerator()
+                    word_generator = WordGenerator(country_config=country_config)
                     word_generator.create_word_document(self.collected_municipalities)
                     self.open_folder_button.config(state=tk.NORMAL)
                     self.show_error(
@@ -237,6 +299,7 @@ class MunicipalityGeneratorGUI:
         finally:
             self.is_running = False
             self.run_button.config(state=tk.NORMAL)
+            self.country_combo.config(state="readonly")
 
     def update_status(self, message):
         """Update status label (thread-safe)"""

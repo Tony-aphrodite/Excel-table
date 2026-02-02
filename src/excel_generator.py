@@ -1,6 +1,7 @@
 """
-Excel Generator for Spanish Municipalities Data
+Excel Generator for Municipality Data
 Creates Excel files with municipality data and equipment calculations
+Supports multiple countries with localized labels
 """
 import pandas as pd
 from openpyxl import Workbook
@@ -26,7 +27,13 @@ from config import (
 class ExcelGenerator:
     """Generator for Excel files with municipality data"""
 
-    def __init__(self):
+    def __init__(self, country_config=None):
+        """
+        Initialize generator with optional country configuration
+
+        Args:
+            country_config: Dictionary with country-specific settings
+        """
         self.header_font = Font(bold=True, color="FFFFFF")
         self.header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         self.header_alignment = Alignment(horizontal="center", vertical="center")
@@ -36,6 +43,28 @@ class ExcelGenerator:
             top=Side(style='thin'),
             bottom=Side(style='thin')
         )
+
+        # Set country-specific labels or use defaults
+        if country_config and "labels" in country_config:
+            labels = country_config["labels"]
+            self.column_names = {
+                'name': labels.get('municipality', COLUMN_NAMES['name']),
+                'total_hab': labels.get('total_hab', COLUMN_NAMES['total_hab']),
+                'hab_urban': labels.get('hab_urban', COLUMN_NAMES['hab_urban']),
+                'hab_rural': labels.get('hab_rural', COLUMN_NAMES['hab_rural']),
+                'equipos_urban': labels.get('equipos_urban', COLUMN_NAMES['equipos_urban']),
+                'equipos_rural': labels.get('equipos_rural', COLUMN_NAMES['equipos_rural']),
+                'total_equipos': labels.get('total_equipos', COLUMN_NAMES['total_equipos']),
+            }
+            self.simple_columns = {
+                'name': labels.get('municipality', SIMPLE_COLUMNS['name']),
+                'total_equipos': labels.get('total_equipos', SIMPLE_COLUMNS['total_equipos']),
+            }
+            self.country_name = country_config.get("name", "España")
+        else:
+            self.column_names = COLUMN_NAMES
+            self.simple_columns = SIMPLE_COLUMNS
+            self.country_name = "España"
 
     def _ensure_data_dir(self):
         """Ensure data directory exists"""
@@ -127,9 +156,7 @@ class ExcelGenerator:
 
     def create_full_excel(self, municipalities, output_path=None):
         """
-        Create full Excel file with 7 columns:
-        Municipio, TOTAL HAB, Nº HAB URBANO, Nº HAB RURAL,
-        EQUIPOS URBANO, EQUIPOS RURAL, TOTAL EQUIPOS
+        Create full Excel file with 7 columns
 
         Args:
             municipalities: List of municipality dictionaries
@@ -147,17 +174,17 @@ class ExcelGenerator:
         # Create workbook
         wb = Workbook()
         ws = wb.active
-        ws.title = "Municipios de España"
+        ws.title = f"Municipios de {self.country_name}"
 
         # Write header
         headers = [
-            COLUMN_NAMES['name'],
-            COLUMN_NAMES['total_hab'],
-            COLUMN_NAMES['hab_urban'],
-            COLUMN_NAMES['hab_rural'],
-            COLUMN_NAMES['equipos_urban'],
-            COLUMN_NAMES['equipos_rural'],
-            COLUMN_NAMES['total_equipos']
+            self.column_names['name'],
+            self.column_names['total_hab'],
+            self.column_names['hab_urban'],
+            self.column_names['hab_rural'],
+            self.column_names['equipos_urban'],
+            self.column_names['equipos_rural'],
+            self.column_names['total_equipos']
         ]
 
         for c_idx, header in enumerate(headers, 1):
@@ -189,8 +216,7 @@ class ExcelGenerator:
 
     def create_simple_excel(self, municipalities, output_path=None):
         """
-        Create simplified Excel file with only 2 columns:
-        Municipio, TOTAL EQUIPOS
+        Create simplified Excel file with only 2 columns
 
         Args:
             municipalities: List of municipality dictionaries
@@ -211,8 +237,8 @@ class ExcelGenerator:
         ws.title = "Equipos"
 
         # Write header
-        ws.cell(row=1, column=1, value=SIMPLE_COLUMNS['name']).border = self.border
-        ws.cell(row=1, column=2, value=SIMPLE_COLUMNS['total_equipos']).border = self.border
+        ws.cell(row=1, column=1, value=self.simple_columns['name']).border = self.border
+        ws.cell(row=1, column=2, value=self.simple_columns['total_equipos']).border = self.border
 
         # Write data
         for r_idx, m in enumerate(processed_data, 2):

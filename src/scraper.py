@@ -1,6 +1,6 @@
 """
-Wikipedia Scraper for Spanish Municipalities Data
-Extracts municipality information from Spanish Wikipedia
+Wikipedia Scraper for Municipality Data
+Extracts municipality information from Wikipedia for multiple countries
 """
 import requests
 from bs4 import BeautifulSoup
@@ -10,23 +10,35 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import (
-    WIKIPEDIA_API_URL,
-    REQUEST_DELAY,
-    USER_AGENT,
-    SPANISH_PROVINCES
-)
+from config import REQUEST_DELAY, USER_AGENT
 
 
 class WikipediaScraper:
-    """Scraper for Spanish municipality data from Wikipedia"""
+    """Scraper for municipality data from Wikipedia"""
 
-    def __init__(self):
+    def __init__(self, country_config=None):
+        """
+        Initialize scraper with optional country configuration
+
+        Args:
+            country_config: Dictionary with country-specific settings
+        """
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT})
         self.municipalities = []
         self.max_retries = 3
         self.retry_delay = 2  # seconds
+
+        # Set country configuration
+        if country_config:
+            self.country_config = country_config
+        else:
+            # Default to Spain
+            from countries.spain import SPAIN_CONFIG
+            self.country_config = SPAIN_CONFIG
+
+        self.api_url = self.country_config.get("wikipedia_api")
+        self.regions = self.country_config.get("regions", [])
 
     def _clean_number(self, text):
         """Clean and parse numeric values from text"""
@@ -38,7 +50,7 @@ class WikipediaScraper:
         text = re.sub(r'\[[^\]]*\]', '', text)
         # Remove spaces and non-breaking spaces
         text = text.replace('\xa0', '').replace(' ', '').replace(',', '.').strip()
-        # Remove thousands separator (Spanish uses . for thousands)
+        # Remove thousands separator (many countries use . for thousands)
         text = re.sub(r'\.(?=\d{3})', '', text)
         # Try to extract number
         match = re.search(r'[\d]+[.,]?\d*', text)
@@ -57,65 +69,23 @@ class WikipediaScraper:
         text = re.sub(r'<[^>]+>', '', text)
         return text.strip()
 
-    def get_province_municipalities_page(self, province):
-        """Get the Wikipedia page for municipalities of a province"""
-        # Different provinces have different page naming conventions
-        province_mappings = {
-            "A Coruña": "la_provincia_de_La_Coruña",
-            "Álava": "la_provincia_de_Álava",
-            "Alicante": "la_provincia_de_Alicante",
-            "Almería": "la_provincia_de_Almería",
-            "Asturias": "Asturias",
-            "Ávila": "la_provincia_de_Ávila",
-            "Badajoz": "la_provincia_de_Badajoz",
-            "Barcelona": "la_provincia_de_Barcelona",
-            "Bizkaia": "Vizcaya",
-            "Burgos": "la_provincia_de_Burgos",
-            "Cáceres": "la_provincia_de_Cáceres",
-            "Cádiz": "la_provincia_de_Cádiz",
-            "Cantabria": "Cantabria",
-            "Castellón": "la_provincia_de_Castellón",
-            "Ciudad Real": "la_provincia_de_Ciudad_Real",
-            "Córdoba": "la_provincia_de_Córdoba",
-            "Cuenca": "la_provincia_de_Cuenca",
-            "Gipuzkoa": "Guipúzcoa",
-            "Girona": "la_provincia_de_Gerona",
-            "Granada": "la_provincia_de_Granada",
-            "Guadalajara": "la_provincia_de_Guadalajara",
-            "Huelva": "la_provincia_de_Huelva",
-            "Huesca": "la_provincia_de_Huesca",
-            "Illes Balears": "las_Islas_Baleares",
-            "Jaén": "la_provincia_de_Jaén",
-            "La Rioja": "La_Rioja",
-            "Las Palmas": "la_provincia_de_Las_Palmas",
-            "León": "la_provincia_de_León",
-            "Lleida": "la_provincia_de_Lérida",
-            "Lugo": "la_provincia_de_Lugo",
-            "Madrid": "la_Comunidad_de_Madrid",
-            "Málaga": "la_provincia_de_Málaga",
-            "Murcia": "la_Región_de_Murcia",
-            "Navarra": "Navarra",
-            "Ourense": "la_provincia_de_Orense",
-            "Palencia": "la_provincia_de_Palencia",
-            "Pontevedra": "la_provincia_de_Pontevedra",
-            "Salamanca": "la_provincia_de_Salamanca",
-            "Santa Cruz de Tenerife": "la_provincia_de_Santa_Cruz_de_Tenerife",
-            "Segovia": "la_provincia_de_Segovia",
-            "Sevilla": "la_provincia_de_Sevilla",
-            "Soria": "la_provincia_de_Soria",
-            "Tarragona": "la_provincia_de_Tarragona",
-            "Teruel": "la_provincia_de_Teruel",
-            "Toledo": "la_provincia_de_Toledo",
-            "Valencia": "la_provincia_de_Valencia",
-            "Valladolid": "la_provincia_de_Valladolid",
-            "Zamora": "la_provincia_de_Zamora",
-            "Zaragoza": "la_provincia_de_Zaragoza",
-            "Albacete": "la_provincia_de_Albacete"
-        }
+    def get_region_page_title(self, region):
+        """Get the Wikipedia page title for municipalities of a region"""
+        mappings = self.country_config.get("region_page_mappings", {})
+        pattern = self.country_config.get("page_title_pattern", "")
+        default_pattern = self.country_config.get("default_region_pattern", "{region}")
 
-        suffix = province_mappings.get(province, f"la_provincia_de_{province.replace(' ', '_')}")
-        page_title = f"Anexo:Municipios_de_{suffix}"
+        # Check if there's a direct mapping for this region
+        if region in mappings:
+            mapped_value = mappings[region]
+            # Check if it's a full page title or just a region replacement
+            if mapped_value.startswith("Lista_") or mapped_value.startswith("Anexo:") or mapped_value.startswith("Comuni_"):
+                return mapped_value
+            region_suffix = mapped_value
+        else:
+            region_suffix = default_pattern.format(region=region.replace(' ', '_'))
 
+        page_title = pattern.format(region=region_suffix)
         return page_title
 
     def fetch_page_html(self, page_title):
@@ -130,7 +100,7 @@ class WikipediaScraper:
         for attempt in range(self.max_retries):
             try:
                 response = self.session.get(
-                    WIKIPEDIA_API_URL,
+                    self.api_url,
                     params=params,
                     timeout=60  # Increased timeout
                 )
@@ -155,7 +125,7 @@ class WikipediaScraper:
 
         return None
 
-    def parse_municipalities_table(self, html_content, province):
+    def parse_municipalities_table(self, html_content, region):
         """Parse municipality data from HTML table"""
         if not html_content:
             return []
@@ -174,13 +144,13 @@ class WikipediaScraper:
                 cells = row.find_all(['td', 'th'])
 
                 if len(cells) >= 2:
-                    municipality = self._extract_municipality_data(cells, province)
+                    municipality = self._extract_municipality_data(cells, region)
                     if municipality and municipality.get('name'):
                         municipalities.append(municipality)
 
         return municipalities
 
-    def _extract_municipality_data(self, cells, province):
+    def _extract_municipality_data(self, cells, region):
         """Extract municipality data from table cells"""
         try:
             # First cell is usually the municipality name
@@ -217,7 +187,7 @@ class WikipediaScraper:
 
             return {
                 'name': name,
-                'province': province,
+                'province': region,
                 'population': population,
                 'area': area,
                 'density': density
@@ -227,33 +197,33 @@ class WikipediaScraper:
             return None
 
     def scrape_all_municipalities(self, progress_callback=None):
-        """Scrape municipalities for all Spanish provinces"""
+        """Scrape municipalities for all regions in the country"""
         all_municipalities = []
-        total_provinces = len(SPANISH_PROVINCES)
-        failed_provinces = []
+        total_regions = len(self.regions)
+        failed_regions = []
 
-        for idx, province in enumerate(SPANISH_PROVINCES):
+        for idx, region in enumerate(self.regions):
             if progress_callback:
-                progress_callback(idx + 1, total_provinces, province)
+                progress_callback(idx + 1, total_regions, region)
 
-            page_title = self.get_province_municipalities_page(province)
+            page_title = self.get_region_page_title(region)
             html_content = self.fetch_page_html(page_title)
 
             if html_content:
-                municipalities = self.parse_municipalities_table(html_content, province)
+                municipalities = self.parse_municipalities_table(html_content, region)
                 all_municipalities.extend(municipalities)
-                print(f"  Found {len(municipalities)} municipalities in {province}")
+                print(f"  Found {len(municipalities)} municipalities in {region}")
             else:
-                print(f"  Warning: Could not fetch data for {province}")
-                failed_provinces.append(province)
+                print(f"  Warning: Could not fetch data for {region}")
+                failed_regions.append(region)
 
             # Rate limiting - increased delay to avoid blocks
             time.sleep(REQUEST_DELAY + 0.5)
 
-        # Report failed provinces
-        if failed_provinces:
-            print(f"\n  Failed provinces: {', '.join(failed_provinces)}")
-            print(f"  Successfully scraped: {total_provinces - len(failed_provinces)}/{total_provinces}")
+        # Report failed regions
+        if failed_regions:
+            print(f"\n  Failed regions: {', '.join(failed_regions)}")
+            print(f"  Successfully scraped: {total_regions - len(failed_regions)}/{total_regions}")
 
         self.municipalities = all_municipalities
         return all_municipalities
@@ -265,10 +235,11 @@ class WikipediaScraper:
 
 def main():
     """Test the scraper"""
+    # Test with Spain (default)
     scraper = WikipediaScraper()
 
-    def progress(current, total, province):
-        print(f"[{current}/{total}] Scraping {province}...")
+    def progress(current, total, region):
+        print(f"[{current}/{total}] Scraping {region}...")
 
     municipalities = scraper.scrape_all_municipalities(progress_callback=progress)
 

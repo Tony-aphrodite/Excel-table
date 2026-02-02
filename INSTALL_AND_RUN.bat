@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 > nul
 echo ============================================
-echo   Generador de Municipios de España
+echo   Generador de Municipios - Multi-País
 echo ============================================
 echo.
 

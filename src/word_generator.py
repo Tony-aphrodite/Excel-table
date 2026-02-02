@@ -1,6 +1,7 @@
 """
-Word Document Generator for Spanish Municipalities Data
+Word Document Generator for Municipality Data
 Creates Word documents with municipality equipment data
+Supports multiple countries with localized labels
 """
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -26,8 +27,26 @@ from config import (
 class WordGenerator:
     """Generator for Word documents with municipality data"""
 
-    def __init__(self):
+    def __init__(self, country_config=None):
+        """
+        Initialize generator with optional country configuration
+
+        Args:
+            country_config: Dictionary with country-specific settings
+        """
         self.header_color = "4472C4"  # Blue
+
+        # Set country-specific labels or use defaults
+        if country_config and "labels" in country_config:
+            labels = country_config["labels"]
+            self.simple_columns = {
+                'name': labels.get('municipality', SIMPLE_COLUMNS['name']),
+                'total_equipos': labels.get('total_equipos', SIMPLE_COLUMNS['total_equipos']),
+            }
+            self.country_name = country_config.get("name", "España")
+        else:
+            self.simple_columns = SIMPLE_COLUMNS
+            self.country_name = "España"
 
     def _ensure_data_dir(self):
         """Ensure data directory exists"""
@@ -64,7 +83,7 @@ class WordGenerator:
 
     def create_word_document(self, municipalities, output_path=None):
         """
-        Create Word document with 2-column table (Municipio and TOTAL EQUIPOS)
+        Create Word document with 2-column table (Municipality and TOTAL EQUIPOS)
 
         Args:
             municipalities: List of municipality dictionaries
@@ -80,7 +99,7 @@ class WordGenerator:
         doc = Document()
 
         # Add title
-        title = doc.add_heading('Equipos de Municipios de España', 0)
+        title = doc.add_heading(f'Equipos de Municipios de {self.country_name}', 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         # Add subtitle with count
@@ -97,8 +116,8 @@ class WordGenerator:
 
         # Header row
         header_cells = table.rows[0].cells
-        header_cells[0].text = SIMPLE_COLUMNS['name']
-        header_cells[1].text = SIMPLE_COLUMNS['total_equipos']
+        header_cells[0].text = self.simple_columns['name']
+        header_cells[1].text = self.simple_columns['total_equipos']
 
         # Style header
         for cell in header_cells:
