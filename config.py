@@ -42,12 +42,22 @@ SPANISH_PROVINCES = [
     "Zamora", "Zaragoza"
 ]
 
+# Equipment calculation divisor
+EQUIPMENT_DIVISOR = 300  # Population / 300 = Equipment
+
 # Column names for Excel (in Spanish)
 COLUMN_NAMES = {
     "name": "Municipio",
-    "province": "Provincia",
-    "population": "Población",
-    "area": "Área (km²)",
-    "density": "Densidad (hab/km²)",
-    "classification": "Clasificación"
+    "total_hab": "TOTAL HAB",
+    "hab_urban": "Nº HAB URBANO",
+    "hab_rural": "Nº HAB RURAL",
+    "equipos_urban": "EQUIPOS URBANO",
+    "equipos_rural": "EQUIPOS RURAL",
+    "total_equipos": "TOTAL EQUIPOS"
+}
+
+# Simple output columns (first and last)
+SIMPLE_COLUMNS = {
+    "name": "Municipio",
+    "total_equipos": "TOTAL EQUIPOS"
 }

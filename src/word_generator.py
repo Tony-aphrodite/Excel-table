@@ -1,6 +1,6 @@
 """
 Word Document Generator for Spanish Municipalities Data
-Creates Word documents with municipality classification data
+Creates Word documents with municipality equipment data
 """
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -12,7 +12,13 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import OUTPUT_WORD, COLUMN_NAMES, DATA_DIR
+from config import (
+    OUTPUT_WORD,
+    SIMPLE_COLUMNS,
+    DATA_DIR,
+    POPULATION_THRESHOLD,
+    EQUIPMENT_DIVISOR
+)
 
 
 class WordGenerator:
@@ -32,9 +38,15 @@ class WordGenerator:
         )
         cell._tc.get_or_add_tcPr().append(shading_elm)
 
+    def _calculate_total_equipos(self, population):
+        """Calculate total equipment based on population"""
+        if population is None:
+            return 0
+        return round(population / EQUIPMENT_DIVISOR, 2)
+
     def create_word_document(self, municipalities, output_path=None):
         """
-        Create Word document with 2-column table (Name and Classification)
+        Create Word document with 2-column table (Municipio and TOTAL EQUIPOS)
 
         Args:
             municipalities: List of municipality dictionaries
@@ -50,7 +62,7 @@ class WordGenerator:
         doc = Document()
 
         # Add title
-        title = doc.add_heading('Clasificación de Municipios de España', 0)
+        title = doc.add_heading('Equipos de Municipios de España', 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         # Add subtitle with count
@@ -67,8 +79,8 @@ class WordGenerator:
 
         # Header row
         header_cells = table.rows[0].cells
-        header_cells[0].text = COLUMN_NAMES['name']
-        header_cells[1].text = COLUMN_NAMES['classification']
+        header_cells[0].text = SIMPLE_COLUMNS['name']
+        header_cells[1].text = SIMPLE_COLUMNS['total_equipos']
 
         # Style header
         for cell in header_cells:
@@ -83,9 +95,13 @@ class WordGenerator:
         for m in municipalities:
             row_cells = table.add_row().cells
             row_cells[0].text = m.get('name', '')
-            row_cells[1].text = m.get('classification', '')
 
-            # Center the classification column
+            # Calculate total equipos
+            population = m.get('population') or 0
+            total_equipos = self._calculate_total_equipos(population)
+            row_cells[1].text = str(total_equipos)
+
+            # Center the equipos column
             row_cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         # Set column widths
@@ -106,10 +122,10 @@ def main():
 
     # Test data
     test_municipalities = [
-        {'name': 'Madrid', 'classification': 'Núcleo Urbano'},
-        {'name': 'Barcelona', 'classification': 'Núcleo Urbano'},
-        {'name': 'Villanueva', 'classification': 'Núcleo Rural'},
-        {'name': 'Pueblecito', 'classification': 'Núcleo Rural'},
+        {'name': 'Madrid', 'population': 3223334},
+        {'name': 'Barcelona', 'population': 1620343},
+        {'name': 'Villanueva', 'population': 2500},
+        {'name': 'Pueblecito', 'population': 150},
     ]
 
     generator.create_word_document(test_municipalities)

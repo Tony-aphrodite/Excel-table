@@ -1,6 +1,6 @@
 """
 Excel Generator for Spanish Municipalities Data
-Creates Excel files with municipality data
+Creates Excel files with municipality data and equipment calculations
 """
 import pandas as pd
 from openpyxl import Workbook
@@ -14,7 +14,10 @@ from config import (
     OUTPUT_FULL_EXCEL,
     OUTPUT_SIMPLE_EXCEL,
     COLUMN_NAMES,
-    DATA_DIR
+    SIMPLE_COLUMNS,
+    DATA_DIR,
+    POPULATION_THRESHOLD,
+    EQUIPMENT_DIVISOR
 )
 
 
@@ -60,9 +63,47 @@ class ExcelGenerator:
             adjusted_width = min(max_length + 2, 50)
             ws.column_dimensions[column_letter].width = adjusted_width
 
+    def _calculate_equipment_data(self, municipalities):
+        """
+        Calculate equipment data for each municipality
+
+        Logic:
+        - If population >= 3000: Urban (HAB URBANO = population, EQUIPOS URBANO = population/300)
+        - If population < 3000: Rural (HAB RURAL = population, EQUIPOS RURAL = population/300)
+        """
+        processed = []
+
+        for m in municipalities:
+            population = m.get('population') or 0
+            name = m.get('name', '')
+
+            # Determine if urban or rural
+            is_urban = population >= POPULATION_THRESHOLD
+
+            # Calculate values
+            hab_urban = population if is_urban else None
+            hab_rural = population if not is_urban else None
+            equipos_urban = round(population / EQUIPMENT_DIVISOR, 2) if is_urban else 0
+            equipos_rural = round(population / EQUIPMENT_DIVISOR, 2) if not is_urban else 0
+            total_equipos = round(population / EQUIPMENT_DIVISOR, 2)
+
+            processed.append({
+                'name': name,
+                'total_hab': population,
+                'hab_urban': hab_urban,
+                'hab_rural': hab_rural,
+                'equipos_urban': equipos_urban,
+                'equipos_rural': equipos_rural,
+                'total_equipos': total_equipos
+            })
+
+        return processed
+
     def create_full_excel(self, municipalities, output_path=None):
         """
-        Create full Excel file with all 6 columns
+        Create full Excel file with 7 columns:
+        Municipio, TOTAL HAB, Nº HAB URBANO, Nº HAB RURAL,
+        EQUIPOS URBANO, EQUIPOS RURAL, TOTAL EQUIPOS
 
         Args:
             municipalities: List of municipality dictionaries
@@ -74,34 +115,38 @@ class ExcelGenerator:
         self._ensure_data_dir()
         output_path = output_path or OUTPUT_FULL_EXCEL
 
-        # Create DataFrame
-        df = pd.DataFrame(municipalities)
-
-        # Reorder and rename columns
-        columns_order = ['name', 'province', 'population', 'area', 'density', 'classification']
-        df = df.reindex(columns=columns_order)
-
-        df.columns = [
-            COLUMN_NAMES['name'],
-            COLUMN_NAMES['province'],
-            COLUMN_NAMES['population'],
-            COLUMN_NAMES['area'],
-            COLUMN_NAMES['density'],
-            COLUMN_NAMES['classification']
-        ]
+        # Calculate equipment data
+        processed_data = self._calculate_equipment_data(municipalities)
 
         # Create workbook
         wb = Workbook()
         ws = wb.active
         ws.title = "Municipios de España"
 
+        # Write header
+        headers = [
+            COLUMN_NAMES['name'],
+            COLUMN_NAMES['total_hab'],
+            COLUMN_NAMES['hab_urban'],
+            COLUMN_NAMES['hab_rural'],
+            COLUMN_NAMES['equipos_urban'],
+            COLUMN_NAMES['equipos_rural'],
+            COLUMN_NAMES['total_equipos']
+        ]
+
+        for c_idx, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=c_idx, value=header)
+            cell.border = self.border
+
         # Write data
-        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
-            for c_idx, value in enumerate(row, 1):
-                cell = ws.cell(row=r_idx, column=c_idx, value=value)
-                cell.border = self.border
-                if r_idx > 1:
-                    cell.alignment = Alignment(horizontal="left")
+        for r_idx, m in enumerate(processed_data, 2):
+            ws.cell(row=r_idx, column=1, value=m['name']).border = self.border
+            ws.cell(row=r_idx, column=2, value=m['total_hab']).border = self.border
+            ws.cell(row=r_idx, column=3, value=m['hab_urban']).border = self.border
+            ws.cell(row=r_idx, column=4, value=m['hab_rural']).border = self.border
+            ws.cell(row=r_idx, column=5, value=m['equipos_urban']).border = self.border
+            ws.cell(row=r_idx, column=6, value=m['equipos_rural']).border = self.border
+            ws.cell(row=r_idx, column=7, value=m['total_equipos']).border = self.border
 
         # Apply styles
         self._apply_header_style(ws)
@@ -118,7 +163,8 @@ class ExcelGenerator:
 
     def create_simple_excel(self, municipalities, output_path=None):
         """
-        Create simplified Excel file with only 2 columns (Name and Classification)
+        Create simplified Excel file with only 2 columns:
+        Municipio, TOTAL EQUIPOS
 
         Args:
             municipalities: List of municipality dictionaries
@@ -130,24 +176,22 @@ class ExcelGenerator:
         self._ensure_data_dir()
         output_path = output_path or OUTPUT_SIMPLE_EXCEL
 
-        # Create DataFrame with only 2 columns
-        df = pd.DataFrame({
-            COLUMN_NAMES['name']: [m.get('name', '') for m in municipalities],
-            COLUMN_NAMES['classification']: [m.get('classification', '') for m in municipalities]
-        })
+        # Calculate equipment data
+        processed_data = self._calculate_equipment_data(municipalities)
 
         # Create workbook
         wb = Workbook()
         ws = wb.active
-        ws.title = "Clasificación"
+        ws.title = "Equipos"
+
+        # Write header
+        ws.cell(row=1, column=1, value=SIMPLE_COLUMNS['name']).border = self.border
+        ws.cell(row=1, column=2, value=SIMPLE_COLUMNS['total_equipos']).border = self.border
 
         # Write data
-        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
-            for c_idx, value in enumerate(row, 1):
-                cell = ws.cell(row=r_idx, column=c_idx, value=value)
-                cell.border = self.border
-                if r_idx > 1:
-                    cell.alignment = Alignment(horizontal="left")
+        for r_idx, m in enumerate(processed_data, 2):
+            ws.cell(row=r_idx, column=1, value=m['name']).border = self.border
+            ws.cell(row=r_idx, column=2, value=m['total_equipos']).border = self.border
 
         # Apply styles
         self._apply_header_style(ws)
@@ -184,10 +228,13 @@ def main():
 
     # Test data
     test_municipalities = [
-        {'name': 'Madrid', 'province': 'Madrid', 'population': 3223334, 'area': 604.3, 'density': 5334.23, 'classification': 'Núcleo Urbano'},
-        {'name': 'Barcelona', 'province': 'Barcelona', 'population': 1620343, 'area': 101.4, 'density': 15982.18, 'classification': 'Núcleo Urbano'},
-        {'name': 'Villanueva', 'province': 'Toledo', 'population': 2500, 'area': 45.2, 'density': 55.31, 'classification': 'Núcleo Rural'},
-        {'name': 'Pueblecito', 'province': 'Soria', 'population': 150, 'area': 12.5, 'density': 12.0, 'classification': 'Núcleo Rural'},
+        {'name': 'Madrid', 'population': 3223334},
+        {'name': 'Barcelona', 'population': 1620343},
+        {'name': 'Tudela', 'population': 37008},
+        {'name': 'Tafalla', 'population': 10582},
+        {'name': 'Villanueva', 'population': 2500},
+        {'name': 'Pueblecito', 'population': 150},
+        {'name': 'Sartaguda', 'population': 1287},
     ]
 
     generator.create_both_excels(test_municipalities)

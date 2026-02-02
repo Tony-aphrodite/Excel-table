@@ -5,27 +5,26 @@ Main entry point for the application
 
 This script:
 1. Scrapes municipality data from Spanish Wikipedia
-2. Classifies each municipality as Rural or Urban (threshold: 3000 inhabitants)
-3. Generates Excel files (full 6-column and simplified 2-column)
-4. Generates Word document with classification data
+2. Calculates equipment (EQUIPOS) based on population / 300
+3. Generates Excel files (full 7-column and simplified 2-column)
+4. Generates Word document with equipment data
 """
 import sys
 import os
 from datetime import datetime
-from tqdm import tqdm
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import (
     POPULATION_THRESHOLD,
+    EQUIPMENT_DIVISOR,
     DATA_DIR,
     OUTPUT_FULL_EXCEL,
     OUTPUT_SIMPLE_EXCEL,
     OUTPUT_WORD
 )
 from src.scraper import WikipediaScraper
-from src.classifier import MunicipalityClassifier
 from src.excel_generator import ExcelGenerator
 from src.word_generator import WordGenerator
 
@@ -34,20 +33,30 @@ def print_banner():
     """Print application banner"""
     print("=" * 60)
     print("  Spanish Municipalities Excel Generator")
-    print("  Classification: Rural (<3000) vs Urban (>=3000)")
+    print(f"  Urban: >= {POPULATION_THRESHOLD} hab | Rural: < {POPULATION_THRESHOLD} hab")
+    print(f"  Equipment = Population / {EQUIPMENT_DIVISOR}")
     print("=" * 60)
     print()
 
 
-def print_statistics(stats):
-    """Print classification statistics"""
-    print("\n" + "=" * 40)
-    print("  Classification Statistics")
-    print("=" * 40)
-    print(f"  Total municipalities: {stats['total']}")
-    print(f"  Rural (Núcleo Rural): {stats['rural']} ({stats['rural_percentage']}%)")
-    print(f"  Urban (Núcleo Urbano): {stats['urban']} ({stats['urban_percentage']}%)")
-    print("=" * 40)
+def print_statistics(municipalities):
+    """Print statistics about the data"""
+    total = len(municipalities)
+    urban = sum(1 for m in municipalities if (m.get('population') or 0) >= POPULATION_THRESHOLD)
+    rural = total - urban
+
+    total_pop = sum(m.get('population') or 0 for m in municipalities)
+    total_equipos = round(total_pop / EQUIPMENT_DIVISOR, 2)
+
+    print("\n" + "=" * 50)
+    print("  Statistics")
+    print("=" * 50)
+    print(f"  Total municipalities: {total}")
+    print(f"  Urban (>= {POPULATION_THRESHOLD}): {urban} ({round(urban/total*100, 1)}%)")
+    print(f"  Rural (< {POPULATION_THRESHOLD}): {rural} ({round(rural/total*100, 1)}%)")
+    print(f"  Total population: {total_pop:,}")
+    print(f"  Total equipment: {total_equipos:,}")
+    print("=" * 50)
 
 
 def main():
@@ -59,7 +68,7 @@ def main():
     os.makedirs(DATA_DIR, exist_ok=True)
 
     # Step 1: Scrape data from Wikipedia
-    print("[1/4] Scraping municipality data from Wikipedia...")
+    print("[1/3] Scraping municipality data from Wikipedia...")
     print("-" * 50)
 
     scraper = WikipediaScraper()
@@ -75,34 +84,27 @@ def main():
 
     print(f"\n  Total municipalities scraped: {len(municipalities)}")
 
-    # Step 2: Classify municipalities
-    print("\n[2/4] Classifying municipalities...")
-    print("-" * 50)
+    # Print statistics
+    print_statistics(municipalities)
 
-    classifier = MunicipalityClassifier(threshold=POPULATION_THRESHOLD)
-    classified_municipalities = classifier.classify_all(municipalities)
-    stats = classifier.get_statistics(classified_municipalities)
-
-    print_statistics(stats)
-
-    # Step 3: Generate Excel files
-    print("\n[3/4] Generating Excel files...")
+    # Step 2: Generate Excel files
+    print("\n[2/3] Generating Excel files...")
     print("-" * 50)
 
     excel_generator = ExcelGenerator()
 
-    print("  Creating full Excel (6 columns)...")
-    excel_generator.create_full_excel(classified_municipalities)
+    print("  Creating full Excel (7 columns)...")
+    excel_generator.create_full_excel(municipalities)
 
     print("  Creating simplified Excel (2 columns)...")
-    excel_generator.create_simple_excel(classified_municipalities)
+    excel_generator.create_simple_excel(municipalities)
 
-    # Step 4: Generate Word document
-    print("\n[4/4] Generating Word document...")
+    # Step 3: Generate Word document
+    print("\n[3/3] Generating Word document...")
     print("-" * 50)
 
     word_generator = WordGenerator()
-    word_generator.create_word_document(classified_municipalities)
+    word_generator.create_word_document(municipalities)
 
     # Summary
     end_time = datetime.now()
@@ -114,8 +116,13 @@ def main():
     print(f"\n  Duration: {duration}")
     print(f"\n  Output files created:")
     print(f"    1. {OUTPUT_FULL_EXCEL}")
+    print(f"       Columns: Municipio, TOTAL HAB, Nº HAB URBANO,")
+    print(f"                Nº HAB RURAL, EQUIPOS URBANO,")
+    print(f"                EQUIPOS RURAL, TOTAL EQUIPOS")
     print(f"    2. {OUTPUT_SIMPLE_EXCEL}")
+    print(f"       Columns: Municipio, TOTAL EQUIPOS")
     print(f"    3. {OUTPUT_WORD}")
+    print(f"       Columns: Municipio, TOTAL EQUIPOS")
     print("\n" + "=" * 60)
 
 
