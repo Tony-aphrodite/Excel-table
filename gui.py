@@ -215,12 +215,9 @@ class MunicipalityGeneratorGUI:
             try:
                 import requests
                 import certifi
-                import os
 
                 # Use certifi SSL certificates
                 ssl_cert = certifi.where()
-                os.environ['SSL_CERT_FILE'] = ssl_cert
-                os.environ['REQUESTS_CA_BUNDLE'] = ssl_cert
 
                 test_response = requests.get(
                     country_config.get("wikipedia_api"),
