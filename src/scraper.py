@@ -12,9 +12,12 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import urllib3
+import certifi
 
-# Disable SSL warnings for .exe compatibility
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Use certifi SSL certificates for .exe compatibility
+SSL_CERT_FILE = certifi.where()
+os.environ['SSL_CERT_FILE'] = SSL_CERT_FILE
+os.environ['REQUESTS_CA_BUNDLE'] = SSL_CERT_FILE
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import REQUEST_DELAY, USER_AGENT
@@ -114,7 +117,7 @@ class WikipediaScraper:
                     self.api_url,
                     params=params,
                     timeout=60,
-                    verify=False  # Skip SSL verification for .exe compatibility
+                    verify=SSL_CERT_FILE  # Use certifi SSL certificates
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -235,7 +238,7 @@ class WikipediaScraper:
                     self.api_url,
                     params=params,
                     timeout=60,
-                    verify=False  # Skip SSL verification for .exe compatibility
+                    verify=SSL_CERT_FILE  # Use certifi SSL certificates
                 )
                 response.raise_for_status()
                 data = response.json()

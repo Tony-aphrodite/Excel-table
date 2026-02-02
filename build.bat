@@ -7,8 +7,8 @@ echo.
 REM Install requirements
 pip install -r requirements.txt
 
-REM Build .exe with countries folder included
-pyinstaller --onefile --windowed --name MunicipiosGenerator --add-data "config.py;." --add-data "src;src" --add-data "countries;countries" gui.py
+REM Build .exe with countries folder and SSL certificates included
+pyinstaller --onefile --windowed --name MunicipiosGenerator --add-data "config.py;." --add-data "src;src" --add-data "countries;countries" --collect-data certifi --hidden-import certifi gui.py
 
 echo.
 echo ============================================

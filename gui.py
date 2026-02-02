@@ -214,14 +214,19 @@ class MunicipalityGeneratorGUI:
             # Test connection first
             try:
                 import requests
-                import urllib3
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                import certifi
+                import os
+
+                # Use certifi SSL certificates
+                ssl_cert = certifi.where()
+                os.environ['SSL_CERT_FILE'] = ssl_cert
+                os.environ['REQUESTS_CA_BUNDLE'] = ssl_cert
 
                 test_response = requests.get(
                     country_config.get("wikipedia_api"),
                     params={"action": "query", "format": "json"},
                     timeout=30,
-                    verify=False  # Skip SSL verification for .exe compatibility
+                    verify=ssl_cert  # Use certifi SSL certificates
                 )
                 test_response.raise_for_status()
             except Exception as e:
