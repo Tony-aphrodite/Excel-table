@@ -17,7 +17,9 @@ from config import (
     SIMPLE_COLUMNS,
     DATA_DIR,
     POPULATION_THRESHOLD,
-    EQUIPMENT_DIVISOR
+    EQUIPMENT_DIVISOR_URBAN,
+    EQUIPMENT_DIVISOR_RURAL,
+    DEFAULT_URBAN_PERCENTAGE
 )
 
 
@@ -39,10 +41,26 @@ class WordGenerator:
         cell._tc.get_or_add_tcPr().append(shading_elm)
 
     def _calculate_total_equipos(self, population):
-        """Calculate total equipment based on population"""
-        if population is None:
+        """
+        Calculate total equipment based on population
+
+        Logic:
+        - Rural (< 3000): EQUIPOS = population / 50
+        - Urban (>= 3000): EQUIPOS = (urban_pop / 300) + (rural_pop / 50)
+        """
+        if population is None or population == 0:
             return 0
-        return round(population / EQUIPMENT_DIVISOR, 2)
+
+        is_urban = population >= POPULATION_THRESHOLD
+
+        if is_urban:
+            hab_urban = int(population * DEFAULT_URBAN_PERCENTAGE)
+            hab_rural = population - hab_urban
+            equipos_urban = hab_urban / EQUIPMENT_DIVISOR_URBAN
+            equipos_rural = hab_rural / EQUIPMENT_DIVISOR_RURAL
+            return round(equipos_urban + equipos_rural, 2)
+        else:
+            return round(population / EQUIPMENT_DIVISOR_RURAL, 2)
 
     def create_word_document(self, municipalities, output_path=None):
         """
@@ -122,10 +140,10 @@ def main():
 
     # Test data
     test_municipalities = [
-        {'name': 'Madrid', 'population': 3223334},
-        {'name': 'Barcelona', 'population': 1620343},
-        {'name': 'Villanueva', 'population': 2500},
-        {'name': 'Pueblecito', 'population': 150},
+        {'name': 'Tudela', 'population': 37008},
+        {'name': 'Tafalla', 'population': 10582},
+        {'name': 'Sartaguda', 'population': 1287},
+        {'name': 'Sesma', 'population': 1149},
     ]
 
     generator.create_word_document(test_municipalities)

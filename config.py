@@ -42,8 +42,14 @@ SPANISH_PROVINCES = [
     "Zamora", "Zaragoza"
 ]
 
-# Equipment calculation divisor
-EQUIPMENT_DIVISOR = 300  # Population / 300 = Equipment
+# Equipment calculation divisors (different for urban and rural)
+EQUIPMENT_DIVISOR_URBAN = 300  # Urban: Population / 300
+EQUIPMENT_DIVISOR_RURAL = 50   # Rural: Population / 50
+
+# Default urban percentage for municipalities classified as urban
+# (used when exact data is not available)
+# Based on typical Spanish urban municipalities: ~95% urban, ~5% rural
+DEFAULT_URBAN_PERCENTAGE = 0.95
 
 # Column names for Excel (in Spanish)
 COLUMN_NAMES = {

@@ -17,7 +17,9 @@ from config import (
     SIMPLE_COLUMNS,
     DATA_DIR,
     POPULATION_THRESHOLD,
-    EQUIPMENT_DIVISOR
+    EQUIPMENT_DIVISOR_URBAN,
+    EQUIPMENT_DIVISOR_RURAL,
+    DEFAULT_URBAN_PERCENTAGE
 )
 
 
@@ -68,8 +70,19 @@ class ExcelGenerator:
         Calculate equipment data for each municipality
 
         Logic:
-        - If population >= 3000: Urban (HAB URBANO = population, EQUIPOS URBANO = population/300)
-        - If population < 3000: Rural (HAB RURAL = population, EQUIPOS RURAL = population/300)
+        - If population < 3000 (Rural):
+            - HAB RURAL = 100% of population
+            - HAB URBAN = 0
+            - EQUIPOS RURAL = population / 50
+            - EQUIPOS URBAN = 0
+
+        - If population >= 3000 (Urban):
+            - HAB URBAN = ~95% of population (configurable)
+            - HAB RURAL = ~5% of population
+            - EQUIPOS URBAN = hab_urban / 300
+            - EQUIPOS RURAL = hab_rural / 50
+
+        - TOTAL EQUIPOS = EQUIPOS URBAN + EQUIPOS RURAL
         """
         processed = []
 
@@ -77,15 +90,28 @@ class ExcelGenerator:
             population = m.get('population') or 0
             name = m.get('name', '')
 
-            # Determine if urban or rural
+            # Determine if urban or rural based on threshold
             is_urban = population >= POPULATION_THRESHOLD
 
-            # Calculate values
-            hab_urban = population if is_urban else None
-            hab_rural = population if not is_urban else None
-            equipos_urban = round(population / EQUIPMENT_DIVISOR, 2) if is_urban else 0
-            equipos_rural = round(population / EQUIPMENT_DIVISOR, 2) if not is_urban else 0
-            total_equipos = round(population / EQUIPMENT_DIVISOR, 2)
+            if is_urban:
+                # Urban municipality: split population into urban/rural portions
+                hab_urban = int(population * DEFAULT_URBAN_PERCENTAGE)
+                hab_rural = population - hab_urban
+
+                # Calculate equipment with different divisors
+                equipos_urban = round(hab_urban / EQUIPMENT_DIVISOR_URBAN, 2)
+                equipos_rural = round(hab_rural / EQUIPMENT_DIVISOR_RURAL, 2)
+            else:
+                # Rural municipality: 100% goes to rural
+                hab_urban = None  # Empty cell
+                hab_rural = population
+
+                # Calculate equipment
+                equipos_urban = 0
+                equipos_rural = round(population / EQUIPMENT_DIVISOR_RURAL, 2)
+
+            # Total equipment is the sum
+            total_equipos = round(equipos_urban + equipos_rural, 2)
 
             processed.append({
                 'name': name,
@@ -226,19 +252,21 @@ def main():
     """Test the Excel generator"""
     generator = ExcelGenerator()
 
-    # Test data
+    # Test data (matching client's examples)
     test_municipalities = [
-        {'name': 'Madrid', 'population': 3223334},
-        {'name': 'Barcelona', 'population': 1620343},
-        {'name': 'Tudela', 'population': 37008},
-        {'name': 'Tafalla', 'population': 10582},
-        {'name': 'Villanueva', 'population': 2500},
-        {'name': 'Pueblecito', 'population': 150},
-        {'name': 'Sartaguda', 'population': 1287},
+        {'name': 'Tudela', 'population': 37008},      # Urban
+        {'name': 'Tafalla', 'population': 10582},     # Urban
+        {'name': 'Sartaguda', 'population': 1287},    # Rural
+        {'name': 'Sesma', 'population': 1149},        # Rural
+        {'name': 'Sorlada', 'population': 51},        # Rural
+        {'name': 'Ulzama', 'population': 1669},       # Rural
     ]
 
     generator.create_both_excels(test_municipalities)
-    print("Test Excel files created successfully!")
+    print("\nTest Excel files created successfully!")
+    print(f"Urban divisor: {EQUIPMENT_DIVISOR_URBAN}")
+    print(f"Rural divisor: {EQUIPMENT_DIVISOR_RURAL}")
+    print(f"Default urban %: {DEFAULT_URBAN_PERCENTAGE * 100}%")
 
 
 if __name__ == "__main__":
