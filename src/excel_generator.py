@@ -10,7 +10,12 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Handle path for both script and PyInstaller .exe
+if getattr(sys, 'frozen', False):
+    sys.path.insert(0, sys._MEIPASS)
+else:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import (
     OUTPUT_FULL_EXCEL,
     OUTPUT_SIMPLE_EXCEL,

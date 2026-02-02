@@ -19,7 +19,13 @@ SSL_CERT_FILE = certifi.where()
 os.environ['SSL_CERT_FILE'] = SSL_CERT_FILE
 os.environ['REQUESTS_CA_BUNDLE'] = SSL_CERT_FILE
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Handle path for both script and PyInstaller .exe
+if getattr(sys, 'frozen', False):
+    # Running as PyInstaller .exe
+    sys.path.insert(0, sys._MEIPASS)
+else:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import REQUEST_DELAY, USER_AGENT
 
 # Number of parallel workers (don't set too high to avoid rate limiting)

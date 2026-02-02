@@ -2,10 +2,27 @@
 Configuration settings for Spanish Municipalities Excel Generator
 """
 import os
+import sys
 
-# Base directory
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
+def get_base_path():
+    """Get base path - works for both script and PyInstaller .exe"""
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller .exe
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_app_path():
+    """Get application path (where .exe is located) for output files"""
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller .exe - use .exe directory
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+# Base directory (for bundled resources)
+BASE_DIR = get_base_path()
+
+# Data directory (for output files - next to .exe)
+DATA_DIR = os.path.join(get_app_path(), "data")
 
 # Classification threshold
 POPULATION_THRESHOLD = 3000  # Below this = Rural, Above = Urban

@@ -5,7 +5,12 @@ Classifies municipalities as Rural or Urban based on population threshold
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Handle path for both script and PyInstaller .exe
+if getattr(sys, 'frozen', False):
+    sys.path.insert(0, sys._MEIPASS)
+else:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import POPULATION_THRESHOLD, LABEL_RURAL, LABEL_URBAN
 
 
