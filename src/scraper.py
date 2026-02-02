@@ -25,6 +25,8 @@ class WikipediaScraper:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT})
         self.municipalities = []
+        self.max_retries = 3
+        self.retry_delay = 2  # seconds
 
     def _clean_number(self, text):
         """Clean and parse numeric values from text"""
@@ -117,7 +119,7 @@ class WikipediaScraper:
         return page_title
 
     def fetch_page_html(self, page_title):
-        """Fetch HTML content of a Wikipedia page"""
+        """Fetch HTML content of a Wikipedia page with retry logic"""
         params = {
             "action": "parse",
             "page": page_title,
@@ -125,17 +127,33 @@ class WikipediaScraper:
             "prop": "text"
         }
 
-        try:
-            response = self.session.get(WIKIPEDIA_API_URL, params=params, timeout=30)
-            response.raise_for_status()
-            data = response.json()
+        for attempt in range(self.max_retries):
+            try:
+                response = self.session.get(
+                    WIKIPEDIA_API_URL,
+                    params=params,
+                    timeout=60  # Increased timeout
+                )
+                response.raise_for_status()
+                data = response.json()
 
-            if "parse" in data and "text" in data["parse"]:
-                return data["parse"]["text"]["*"]
-            return None
-        except Exception as e:
-            print(f"Error fetching {page_title}: {e}")
-            return None
+                if "parse" in data and "text" in data["parse"]:
+                    return data["parse"]["text"]["*"]
+                return None
+            except requests.exceptions.Timeout:
+                print(f"    Timeout (attempt {attempt + 1}/{self.max_retries})")
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (attempt + 1))
+            except requests.exceptions.ConnectionError:
+                print(f"    Connection error (attempt {attempt + 1}/{self.max_retries})")
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (attempt + 1))
+            except Exception as e:
+                print(f"    Error: {e} (attempt {attempt + 1}/{self.max_retries})")
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (attempt + 1))
+
+        return None
 
     def parse_municipalities_table(self, html_content, province):
         """Parse municipality data from HTML table"""
@@ -212,6 +230,7 @@ class WikipediaScraper:
         """Scrape municipalities for all Spanish provinces"""
         all_municipalities = []
         total_provinces = len(SPANISH_PROVINCES)
+        failed_provinces = []
 
         for idx, province in enumerate(SPANISH_PROVINCES):
             if progress_callback:
@@ -226,9 +245,15 @@ class WikipediaScraper:
                 print(f"  Found {len(municipalities)} municipalities in {province}")
             else:
                 print(f"  Warning: Could not fetch data for {province}")
+                failed_provinces.append(province)
 
-            # Rate limiting
-            time.sleep(REQUEST_DELAY)
+            # Rate limiting - increased delay to avoid blocks
+            time.sleep(REQUEST_DELAY + 0.5)
+
+        # Report failed provinces
+        if failed_provinces:
+            print(f"\n  Failed provinces: {', '.join(failed_provinces)}")
+            print(f"  Successfully scraped: {total_provinces - len(failed_provinces)}/{total_provinces}")
 
         self.municipalities = all_municipalities
         return all_municipalities

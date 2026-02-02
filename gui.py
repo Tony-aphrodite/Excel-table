@@ -30,7 +30,7 @@ class MunicipalityGeneratorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Generador de Municipios de España")
-        self.root.geometry("500x400")
+        self.root.geometry("550x450")
         self.root.resizable(False, False)
 
         # Center the window
@@ -40,6 +40,7 @@ class MunicipalityGeneratorGUI:
         self.is_running = False
         self.progress_var = tk.DoubleVar()
         self.status_var = tk.StringVar(value="Listo para comenzar")
+        self.collected_municipalities = []
 
         # Create UI
         self.create_widgets()
@@ -97,7 +98,7 @@ class MunicipalityGeneratorGUI:
             main_frame,
             variable=self.progress_var,
             maximum=100,
-            length=400
+            length=450
         )
         self.progress_bar.pack(pady=(0, 10))
 
@@ -105,7 +106,8 @@ class MunicipalityGeneratorGUI:
         self.status_label = ttk.Label(
             main_frame,
             textvariable=self.status_var,
-            font=('Helvetica', 10)
+            font=('Helvetica', 10),
+            wraplength=450
         )
         self.status_label.pack(pady=(0, 20))
 
@@ -135,6 +137,7 @@ class MunicipalityGeneratorGUI:
         self.run_button.config(state=tk.DISABLED)
         self.progress_var.set(0)
         self.status_var.set("Iniciando...")
+        self.collected_municipalities = []
 
         # Run in separate thread to keep GUI responsive
         thread = threading.Thread(target=self.run_generation)
@@ -148,22 +151,36 @@ class MunicipalityGeneratorGUI:
             os.makedirs(DATA_DIR, exist_ok=True)
 
             # Step 1: Scrape data (0-70%)
-            self.update_status("Descargando datos de Wikipedia...")
+            self.update_status("Descargando datos de Wikipedia (esto puede tardar 1-2 minutos)...")
             scraper = WikipediaScraper()
 
             total_provinces = 50
-            municipalities = []
 
             def progress_callback(current, total, province):
                 progress = (current / total) * 70
                 self.progress_var.set(progress)
-                self.update_status(f"[{current}/{total}] {province}...")
+                # Also show how many municipalities collected so far
+                count = len(scraper.municipalities) if hasattr(scraper, 'municipalities') else 0
+                self.update_status(f"[{current}/{total}] {province}... ({count} municipios)")
 
             municipalities = scraper.scrape_all_municipalities(progress_callback=progress_callback)
+            self.collected_municipalities = municipalities
 
+            # Check if we got any data
             if not municipalities:
-                self.show_error("No se encontraron municipios. Verifique su conexión a internet.")
+                self.show_error(
+                    "No se encontraron municipios.\n\n"
+                    "Posibles causas:\n"
+                    "• Sin conexión a internet\n"
+                    "• Wikipedia no está disponible\n"
+                    "• Firewall bloqueando conexiones\n\n"
+                    "Verifique su conexión e intente de nuevo."
+                )
                 return
+
+            # Even if we got partial data, continue
+            if len(municipalities) < 7000:
+                self.update_status(f"⚠ Datos parciales: {len(municipalities)} municipios (esperados ~8000)")
 
             # Step 2: Generate Excel files (70-90%)
             self.progress_var.set(75)
@@ -197,7 +214,26 @@ class MunicipalityGeneratorGUI:
             ))
 
         except Exception as e:
-            self.show_error(f"Error: {str(e)}")
+            error_msg = str(e)
+            # If we collected some data, try to save it anyway
+            if self.collected_municipalities and len(self.collected_municipalities) > 0:
+                try:
+                    self.update_status(f"Error parcial. Guardando {len(self.collected_municipalities)} municipios...")
+                    excel_generator = ExcelGenerator()
+                    excel_generator.create_full_excel(self.collected_municipalities)
+                    excel_generator.create_simple_excel(self.collected_municipalities)
+                    word_generator = WordGenerator()
+                    word_generator.create_word_document(self.collected_municipalities)
+                    self.open_folder_button.config(state=tk.NORMAL)
+                    self.show_error(
+                        f"Error durante la descarga, pero se guardaron {len(self.collected_municipalities)} municipios.\n\n"
+                        f"Error: {error_msg}\n\n"
+                        f"Los archivos parciales están en la carpeta 'data/'."
+                    )
+                except:
+                    self.show_error(f"Error: {error_msg}")
+            else:
+                self.show_error(f"Error: {error_msg}")
         finally:
             self.is_running = False
             self.run_button.config(state=tk.NORMAL)
@@ -209,7 +245,7 @@ class MunicipalityGeneratorGUI:
     def show_error(self, message):
         """Show error message (thread-safe)"""
         self.root.after(0, lambda: messagebox.showerror("Error", message))
-        self.root.after(0, lambda: self.status_var.set("Error"))
+        self.root.after(0, lambda: self.status_var.set("Error - Ver mensaje"))
         self.root.after(0, lambda: self.progress_var.set(0))
 
     def open_output_folder(self):
@@ -217,12 +253,15 @@ class MunicipalityGeneratorGUI:
         import subprocess
         import platform
 
-        if platform.system() == "Windows":
-            os.startfile(DATA_DIR)
-        elif platform.system() == "Darwin":  # macOS
-            subprocess.Popen(["open", DATA_DIR])
-        else:  # Linux
-            subprocess.Popen(["xdg-open", DATA_DIR])
+        try:
+            if platform.system() == "Windows":
+                os.startfile(DATA_DIR)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", DATA_DIR])
+            else:  # Linux
+                subprocess.Popen(["xdg-open", DATA_DIR])
+        except Exception as e:
+            messagebox.showinfo("Carpeta", f"Los archivos están en:\n{DATA_DIR}")
 
 
 def main():

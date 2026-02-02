@@ -24,7 +24,8 @@ WIKIPEDIA_API_URL = "https://es.wikipedia.org/w/api.php"
 WIKIPEDIA_BASE_URL = "https://es.wikipedia.org/wiki/"
 
 # Rate limiting (seconds between requests)
-REQUEST_DELAY = 0.5
+# Increased to avoid Wikipedia rate limiting
+REQUEST_DELAY = 1.5
 
 # User agent for requests
 USER_AGENT = "MunicipiosSpainBot/1.0 (Educational Project)"
