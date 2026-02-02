@@ -215,6 +215,7 @@ class MunicipalityGeneratorGUI:
             try:
                 import requests
                 import certifi
+                from config import USER_AGENT
 
                 # Use certifi SSL certificates
                 ssl_cert = certifi.where()
@@ -222,6 +223,7 @@ class MunicipalityGeneratorGUI:
                 test_response = requests.get(
                     country_config.get("wikipedia_api"),
                     params={"action": "query", "format": "json"},
+                    headers={"User-Agent": USER_AGENT},
                     timeout=30,
                     verify=ssl_cert  # Use certifi SSL certificates
                 )

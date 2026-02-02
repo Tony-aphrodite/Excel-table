@@ -27,8 +27,9 @@ WIKIPEDIA_BASE_URL = "https://es.wikipedia.org/wiki/"
 # Note: Parallel processing uses MAX_WORKERS instead of delay
 REQUEST_DELAY = 0.5
 
-# User agent for requests
-USER_AGENT = "MunicipiosSpainBot/1.0 (Educational Project)"
+# User agent for requests (Wikipedia requires descriptive User-Agent)
+# Format: AppName/Version (Contact Info) Framework/Version
+USER_AGENT = "MunicipiosGenerator/1.0 (Municipal Data Educational Tool; Python/requests) Python-requests/2.28"
 
 # Spanish provinces list
 SPANISH_PROVINCES = [
