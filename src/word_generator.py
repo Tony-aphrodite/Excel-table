@@ -23,6 +23,7 @@ from config import (
     SIMPLE_COLUMNS,
     DATA_DIR,
     POPULATION_THRESHOLD,
+    MIN_RURAL_POPULATION,
     EQUIPMENT_DIVISOR_URBAN,
     EQUIPMENT_DIVISOR_RURAL,
     DEFAULT_URBAN_PERCENTAGE
@@ -84,8 +85,9 @@ class WordGenerator:
         Calculate total equipment based on population
 
         Logic:
-        - Rural (< 3000): EQUIPOS = population / 50
-        - Urban (>= 3000): EQUIPOS = (urban_pop / 300) + (rural_pop / 50)
+        - Rural (< 2000): EQUIPOS = population / 50
+        - Urban (>= 2000): EQUIPOS = (hab_urban / 300) + (2000 / 50)
+          where hab_urban = population - 2000
         """
         if population is None or population == 0:
             return 0
@@ -93,10 +95,10 @@ class WordGenerator:
         is_urban = population >= POPULATION_THRESHOLD
 
         if is_urban:
-            hab_urban = int(population * DEFAULT_URBAN_PERCENTAGE)
-            hab_rural = population - hab_urban
-            equipos_urban = hab_urban / EQUIPMENT_DIVISOR_URBAN
+            hab_rural = MIN_RURAL_POPULATION  # Fixed 2000
+            hab_urban = population - MIN_RURAL_POPULATION
             equipos_rural = hab_rural / EQUIPMENT_DIVISOR_RURAL
+            equipos_urban = hab_urban / EQUIPMENT_DIVISOR_URBAN
             return round(equipos_urban + equipos_rural, 2)
         else:
             return round(population / EQUIPMENT_DIVISOR_RURAL, 2)

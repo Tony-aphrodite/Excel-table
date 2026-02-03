@@ -25,7 +25,10 @@ BASE_DIR = get_base_path()
 DATA_DIR = os.path.join(get_app_path(), "data")
 
 # Classification threshold
-POPULATION_THRESHOLD = 3000  # Below this = Rural, Above = Urban
+POPULATION_THRESHOLD = 2000  # Below this = 100% Rural, Above = Fixed 2000 Rural + rest Urban
+
+# Minimum rural population for urban municipalities
+MIN_RURAL_POPULATION = 2000  # Fixed rural population when total >= threshold
 
 # Classification labels (in Spanish)
 LABEL_RURAL = "Núcleo Rural"

@@ -23,6 +23,7 @@ from config import (
     SIMPLE_COLUMNS,
     DATA_DIR,
     POPULATION_THRESHOLD,
+    MIN_RURAL_POPULATION,
     EQUIPMENT_DIVISOR_URBAN,
     EQUIPMENT_DIVISOR_RURAL,
     DEFAULT_URBAN_PERCENTAGE
@@ -121,17 +122,17 @@ class ExcelGenerator:
         Calculate equipment data for each municipality
 
         Logic:
-        - If population < 3000 (Rural):
+        - If population < 2000 (Rural):
             - HAB RURAL = 100% of population
-            - HAB URBAN = 0
+            - HAB URBAN = empty
             - EQUIPOS RURAL = population / 50
             - EQUIPOS URBAN = 0
 
-        - If population >= 3000 (Urban):
-            - HAB URBAN = ~95% of population (configurable)
-            - HAB RURAL = ~5% of population
+        - If population >= 2000 (Urban):
+            - HAB RURAL = 2000 (fixed minimum)
+            - HAB URBAN = population - 2000
+            - EQUIPOS RURAL = 2000 / 50 = 40
             - EQUIPOS URBAN = hab_urban / 300
-            - EQUIPOS RURAL = hab_rural / 50
 
         - TOTAL EQUIPOS = EQUIPOS URBAN + EQUIPOS RURAL
         """
@@ -145,13 +146,13 @@ class ExcelGenerator:
             is_urban = population >= POPULATION_THRESHOLD
 
             if is_urban:
-                # Urban municipality: split population into urban/rural portions
-                hab_urban = int(population * DEFAULT_URBAN_PERCENTAGE)
-                hab_rural = population - hab_urban
+                # Urban municipality: fixed 2000 for rural, rest is urban
+                hab_rural = MIN_RURAL_POPULATION  # Fixed 2000
+                hab_urban = population - MIN_RURAL_POPULATION
 
                 # Calculate equipment with different divisors
-                equipos_urban = round(hab_urban / EQUIPMENT_DIVISOR_URBAN, 2)
                 equipos_rural = round(hab_rural / EQUIPMENT_DIVISOR_RURAL, 2)
+                equipos_urban = round(hab_urban / EQUIPMENT_DIVISOR_URBAN, 2)
             else:
                 # Rural municipality: 100% goes to rural
                 hab_urban = None  # Empty cell
@@ -162,7 +163,7 @@ class ExcelGenerator:
                 equipos_rural = round(population / EQUIPMENT_DIVISOR_RURAL, 2)
 
             # Total equipment is the sum
-            total_equipos = round(equipos_urban + equipos_rural, 2)
+            total_equipos = round((equipos_urban or 0) + equipos_rural, 2)
 
             processed.append({
                 'name': name,
