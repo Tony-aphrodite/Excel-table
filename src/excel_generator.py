@@ -71,6 +71,23 @@ class ExcelGenerator:
             self.simple_columns = SIMPLE_COLUMNS
             self.country_name = "España"
 
+        # Generate country-specific file names
+        country_suffix = self._get_country_suffix()
+        self.output_full = os.path.join(DATA_DIR, f"municipios_{country_suffix}_completo.xlsx")
+        self.output_simple = os.path.join(DATA_DIR, f"municipios_{country_suffix}_clasificacion.xlsx")
+
+    def _get_country_suffix(self):
+        """Get lowercase country name for file naming"""
+        # Map country names to simple file suffixes
+        country_map = {
+            "España": "espana",
+            "France": "france",
+            "Italia": "italia",
+            "Portugal": "portugal",
+            "Deutschland": "deutschland",
+        }
+        return country_map.get(self.country_name, self.country_name.lower().replace(" ", "_"))
+
     def _ensure_data_dir(self):
         """Ensure data directory exists"""
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -171,7 +188,7 @@ class ExcelGenerator:
             Path to created file
         """
         self._ensure_data_dir()
-        output_path = output_path or OUTPUT_FULL_EXCEL
+        output_path = output_path or self.output_full
 
         # Calculate equipment data
         processed_data = self._calculate_equipment_data(municipalities)
@@ -231,7 +248,7 @@ class ExcelGenerator:
             Path to created file
         """
         self._ensure_data_dir()
-        output_path = output_path or OUTPUT_SIMPLE_EXCEL
+        output_path = output_path or self.output_simple
 
         # Calculate equipment data
         processed_data = self._calculate_equipment_data(municipalities)

@@ -53,6 +53,21 @@ class WordGenerator:
             self.simple_columns = SIMPLE_COLUMNS
             self.country_name = "España"
 
+        # Generate country-specific file name
+        country_suffix = self._get_country_suffix()
+        self.output_word = os.path.join(DATA_DIR, f"municipios_{country_suffix}_clasificacion.docx")
+
+    def _get_country_suffix(self):
+        """Get lowercase country name for file naming"""
+        country_map = {
+            "España": "espana",
+            "France": "france",
+            "Italia": "italia",
+            "Portugal": "portugal",
+            "Deutschland": "deutschland",
+        }
+        return country_map.get(self.country_name, self.country_name.lower().replace(" ", "_"))
+
     def _ensure_data_dir(self):
         """Ensure data directory exists"""
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -98,7 +113,7 @@ class WordGenerator:
             Path to created file
         """
         self._ensure_data_dir()
-        output_path = output_path or OUTPUT_WORD
+        output_path = output_path or self.output_word
 
         # Create document
         doc = Document()
