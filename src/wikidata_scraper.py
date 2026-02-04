@@ -199,6 +199,7 @@ class WikidataScraper:
     def scrape_all_municipalities(self, progress_callback=None):
         """
         Scrape all municipalities for the country using Wikidata SPARQL
+        Tries simple query first, then subclass query if results are insufficient
 
         Args:
             progress_callback: Optional callback function(current, total, message)
@@ -206,15 +207,43 @@ class WikidataScraper:
         Returns:
             List of municipality dictionaries
         """
-        all_municipalities = []
         total_expected = self._get_expected_count()
-        offset = 0
-        batch_size = 2000  # Smaller batches for better reliability
-        batch_num = 0
-        consecutive_empty = 0
-        max_consecutive_empty = 2  # Stop after 2 empty batches
 
-        print(f"  Fetching municipalities for {self.country_name} from Wikidata...")
+        # Try simple query first (faster)
+        simple_results = self._fetch_with_query(
+            self._build_sparql_query,
+            total_expected,
+            progress_callback,
+            "simple"
+        )
+
+        # If results are less than 50% of expected, try subclass query
+        if len(simple_results) < total_expected * 0.5:
+            print(f"  Simple query returned only {len(simple_results)}, trying subclass query...")
+            subclass_results = self._fetch_with_query(
+                self._build_sparql_query_with_subclasses,
+                total_expected,
+                progress_callback,
+                "subclass"
+            )
+
+            # Use whichever has more results
+            if len(subclass_results) > len(simple_results):
+                self.municipalities = subclass_results
+                print(f"  Using subclass query results: {len(subclass_results)} municipalities")
+                return subclass_results
+
+        self.municipalities = simple_results
+        return simple_results
+
+    def _fetch_with_query(self, query_builder, total_expected, progress_callback, query_type):
+        """Fetch municipalities using the specified query builder"""
+        all_municipalities = []
+        offset = 0
+        batch_size = 2000
+        batch_num = 0
+
+        print(f"  Fetching municipalities for {self.country_name} from Wikidata ({query_type})...")
         print(f"  Expected approximately {total_expected} municipalities")
 
         while True:
@@ -228,7 +257,7 @@ class WikidataScraper:
 
             print(f"    Fetching batch {batch_num} (offset {offset})...")
 
-            query = self._build_sparql_query(offset=offset, limit=batch_size)
+            query = query_builder(offset=offset, limit=batch_size)
             results = self._execute_query(query)
 
             if not results:
@@ -258,9 +287,7 @@ class WikidataScraper:
                 seen.add(m["name"])
                 unique_municipalities.append(m)
 
-        self.municipalities = unique_municipalities
-        print(f"  Total unique municipalities found: {len(unique_municipalities)}")
-
+        print(f"  Total unique municipalities found ({query_type}): {len(unique_municipalities)}")
         return unique_municipalities
 
     def _get_expected_count(self):

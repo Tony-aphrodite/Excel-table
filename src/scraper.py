@@ -148,7 +148,7 @@ class WikipediaScraper:
         return None
 
     def parse_municipalities_table(self, html_content, region):
-        """Parse municipality data from HTML table"""
+        """Parse municipality data from HTML table or list"""
         if not html_content:
             return []
 
@@ -159,7 +159,7 @@ class WikipediaScraper:
             soup = BeautifulSoup(html_content, 'html.parser')
         municipalities = []
 
-        # Find all tables - municipality data is usually in wikitables
+        # First try: Find all tables - municipality data is usually in wikitables
         tables = soup.find_all('table', class_='wikitable')
 
         for table in tables:
@@ -174,7 +174,75 @@ class WikipediaScraper:
                     if municipality and municipality.get('name'):
                         municipalities.append(municipality)
 
+        # Second try: If no tables found, try parsing lists (for German Wikipedia)
+        if not municipalities:
+            municipalities = self._parse_municipalities_list(soup, region)
+
         return municipalities
+
+    def _parse_municipalities_list(self, soup, region):
+        """Parse municipality data from HTML lists (for pages without tables)"""
+        municipalities = []
+        seen_names = set()
+
+        # Find all list items that contain links (municipality names are usually links)
+        for li in soup.find_all('li'):
+            # Get the first link in the list item (usually the municipality name)
+            link = li.find('a')
+            if not link:
+                continue
+
+            name = self._clean_text(link.get_text())
+
+            # Skip invalid names
+            if not name or len(name) < 2:
+                continue
+
+            # Skip if already seen
+            if name in seen_names:
+                continue
+
+            # Skip common non-municipality items
+            skip_patterns = ['Liste', 'Kategorie', 'Datei', 'Wikipedia', 'Portal',
+                           'Vorlage', 'Hilfe', 'Diskussion', 'Benutzer', 'Spezial']
+            if any(pattern in name for pattern in skip_patterns):
+                continue
+
+            seen_names.add(name)
+
+            # Try to extract population from the list item text
+            li_text = li.get_text()
+            population = self._extract_population_from_text(li_text)
+
+            municipalities.append({
+                'name': name,
+                'province': region,
+                'population': population,
+                'area': None,
+                'density': None
+            })
+
+        return municipalities
+
+    def _extract_population_from_text(self, text):
+        """Extract population number from text"""
+        # Look for patterns like "12.345 Einwohner" or "(12345)"
+        import re
+        # Pattern for German population format
+        patterns = [
+            r'(\d{1,3}(?:\.\d{3})*)\s*(?:Einwohner|EW|Ew\.)',
+            r'\((\d{1,3}(?:\.\d{3})*)\)',
+            r'(\d{4,})',  # Any 4+ digit number
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                num_str = match.group(1).replace('.', '')
+                try:
+                    return int(num_str)
+                except ValueError:
+                    pass
+        return None
 
     def _extract_municipality_data(self, cells, region):
         """Extract municipality data from table cells"""
