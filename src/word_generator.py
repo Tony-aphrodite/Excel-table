@@ -80,28 +80,39 @@ class WordGenerator:
         )
         cell._tc.get_or_add_tcPr().append(shading_elm)
 
-    def _calculate_total_equipos(self, population):
+    def _calculate_total_equipos(self, population, urban_percentage=None):
         """
-        Calculate total equipment based on population
+        Calculate total equipment based on population (rounded to integer)
 
         Logic:
-        - Rural (< 2000): EQUIPOS = population / 50
-        - Urban (>= 2000): EQUIPOS = (hab_urban / 300) + (2000 / 50)
-          where hab_urban = population - 2000
+        - Rural (<= 2000): EQUIPOS = population / 51
+        - Urban (> 2000):
+          - Base: 2000 / 51
+          - Excess distributed by IA ratio:
+            - urbano: excess * urban% / 301
+            - rural extra: excess * rural% / 51
+          - TOTAL = base + urbano + rural_extra
         """
         if population is None or population == 0:
             return 0
 
-        is_urban = population >= POPULATION_THRESHOLD
+        if urban_percentage is None:
+            urban_percentage = DEFAULT_URBAN_PERCENTAGE
 
-        if is_urban:
-            hab_rural = MIN_RURAL_POPULATION  # Fixed 2000
-            hab_urban = population - MIN_RURAL_POPULATION
-            equipos_rural = hab_rural / EQUIPMENT_DIVISOR_RURAL
+        exceeds_threshold = population > POPULATION_THRESHOLD
+
+        if exceeds_threshold:
+            excess = population - MIN_RURAL_POPULATION
+            hab_urban = excess * urban_percentage
+            hab_rural_extra = excess * (1 - urban_percentage)
+
+            base_equipos = MIN_RURAL_POPULATION / EQUIPMENT_DIVISOR_RURAL
             equipos_urban = hab_urban / EQUIPMENT_DIVISOR_URBAN
-            return round(equipos_urban + equipos_rural, 2)
+            equipos_rural_extra = hab_rural_extra / EQUIPMENT_DIVISOR_RURAL
+
+            return round(base_equipos + equipos_urban + equipos_rural_extra)  # Integer
         else:
-            return round(population / EQUIPMENT_DIVISOR_RURAL, 2)
+            return round(population / EQUIPMENT_DIVISOR_RURAL)  # Integer
 
     def create_word_document(self, municipalities, output_path=None):
         """
@@ -155,9 +166,10 @@ class WordGenerator:
             row_cells = table.add_row().cells
             row_cells[0].text = m.get('name', '')
 
-            # Calculate total equipos
+            # Calculate total equipos (with IA ratio if available)
             population = m.get('population') or 0
-            total_equipos = self._calculate_total_equipos(population)
+            urban_percentage = m.get('urban_percentage')
+            total_equipos = self._calculate_total_equipos(population, urban_percentage)
             row_cells[1].text = str(total_equipos)
 
             # Center the equipos column
@@ -179,16 +191,17 @@ def main():
     """Test the Word generator"""
     generator = WordGenerator()
 
-    # Test data
+    # Test data with IA ratios
     test_municipalities = [
-        {'name': 'Tudela', 'population': 37008},
-        {'name': 'Tafalla', 'population': 10582},
-        {'name': 'Sartaguda', 'population': 1287},
-        {'name': 'Sesma', 'population': 1149},
+        {'name': 'Tudela', 'population': 37008, 'urban_percentage': 0.70},
+        {'name': 'Tafalla', 'population': 10582, 'urban_percentage': 0.80},
+        {'name': 'Sartaguda', 'population': 1287},   # <= 2000, 100% rural
+        {'name': 'Sesma', 'population': 1149},       # <= 2000, 100% rural
     ]
 
     generator.create_word_document(test_municipalities)
     print("Test Word document created successfully!")
+    print("Numbers are now rounded to integers (no decimals)")
 
 
 if __name__ == "__main__":
