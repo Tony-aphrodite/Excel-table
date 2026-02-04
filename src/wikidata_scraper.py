@@ -20,30 +20,31 @@ from config import USER_AGENT
 WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql"
 
 # Municipality types for each country (Wikidata Q-codes)
+# Using multiple types to ensure complete coverage
 COUNTRY_MUNICIPALITY_TYPES = {
     "España": {
         "country_code": "Q29",
-        "municipality_type": "Q2074737",  # municipality of Spain
+        "municipality_types": ["Q2074737", "Q3327873"],  # municipality of Spain + municipality
         "name": "España",
     },
     "France": {
         "country_code": "Q142",
-        "municipality_type": "Q484170",  # commune of France
+        "municipality_types": ["Q484170", "Q22927616"],  # commune + nouvelle commune
         "name": "France",
     },
     "Italia": {
         "country_code": "Q38",
-        "municipality_type": "Q747074",  # comune of Italy
+        "municipality_types": ["Q747074", "Q1134686", "Q15284"],  # comune + municipality + city
         "name": "Italia",
     },
     "Portugal": {
         "country_code": "Q45",
-        "municipality_type": "Q13217644",  # municipality of Portugal
+        "municipality_types": ["Q13217644", "Q1137809", "Q215380"],  # municipality + freguesia + civil parish
         "name": "Portugal",
     },
     "Deutschland": {
         "country_code": "Q183",
-        "municipality_type": "Q262166",  # municipality of Germany
+        "municipality_types": ["Q262166", "Q42744322", "Q116457956", "Q253019"],  # municipality types + stadt
         "name": "Deutschland",
     },
 }
@@ -80,16 +81,47 @@ class WikidataScraper:
             COUNTRY_MUNICIPALITY_TYPES["España"]
         )
 
-    def _build_sparql_query(self, offset=0, limit=5000):
-        """Build SPARQL query for municipalities"""
-        municipality_type = self.wikidata_config["municipality_type"]
+    def _build_sparql_query(self, offset=0, limit=2000):
+        """Build SPARQL query for municipalities - optimized for speed"""
+        municipality_types = self.wikidata_config.get("municipality_types", [])
         country_code = self.wikidata_config["country_code"]
 
-        # Query including subclasses of municipality type
+        # Build VALUES clause for multiple types (faster than UNION with P279*)
+        types_values = " ".join([f"wd:{t}" for t in municipality_types])
+
+        # Simpler query without P279* traversal and ORDER BY (faster)
         query = f"""
         SELECT DISTINCT ?municipality ?municipalityLabel ?population
         WHERE {{
-          ?municipality wdt:P31/wdt:P279* wd:{municipality_type} .
+          VALUES ?type {{ {types_values} }}
+          ?municipality wdt:P31 ?type .
+          ?municipality wdt:P17 wd:{country_code} .
+          OPTIONAL {{ ?municipality wdt:P1082 ?population . }}
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "es,fr,it,pt,de,en" . }}
+        }}
+        LIMIT {limit}
+        OFFSET {offset}
+        """
+        return query
+
+    def _build_sparql_query_with_subclasses(self, offset=0, limit=2000):
+        """Build SPARQL query including subclasses (slower but more complete)"""
+        municipality_types = self.wikidata_config.get("municipality_types", [])
+        country_code = self.wikidata_config["country_code"]
+
+        # Build UNION query for multiple municipality types with subclass traversal
+        if len(municipality_types) == 1:
+            type_filter = f"?municipality wdt:P31/wdt:P279* wd:{municipality_types[0]} ."
+        else:
+            union_parts = []
+            for mtype in municipality_types:
+                union_parts.append(f"{{ ?municipality wdt:P31/wdt:P279* wd:{mtype} . }}")
+            type_filter = " UNION ".join(union_parts)
+
+        query = f"""
+        SELECT DISTINCT ?municipality ?municipalityLabel ?population
+        WHERE {{
+          {type_filter}
           ?municipality wdt:P17 wd:{country_code} .
           OPTIONAL {{ ?municipality wdt:P1082 ?population . }}
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "es,fr,it,pt,de,en" . }}
@@ -177,8 +209,10 @@ class WikidataScraper:
         all_municipalities = []
         total_expected = self._get_expected_count()
         offset = 0
-        batch_size = 5000
+        batch_size = 2000  # Smaller batches for better reliability
         batch_num = 0
+        consecutive_empty = 0
+        max_consecutive_empty = 2  # Stop after 2 empty batches
 
         print(f"  Fetching municipalities for {self.country_name} from Wikidata...")
         print(f"  Expected approximately {total_expected} municipalities")

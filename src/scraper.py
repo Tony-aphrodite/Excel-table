@@ -99,7 +99,8 @@ class WikipediaScraper:
         if region in mappings:
             mapped_value = mappings[region]
             # Check if it's a full page title or just a region replacement
-            if mapped_value.startswith("Lista_") or mapped_value.startswith("Anexo:") or mapped_value.startswith("Comuni_"):
+            full_page_prefixes = ("Lista_", "Liste_", "Anexo:", "Comuni_")
+            if mapped_value.startswith(full_page_prefixes):
                 return mapped_value
             region_suffix = mapped_value
         else:

@@ -31,11 +31,32 @@ PORTUGAL_CONFIG = {
     ],
 
     # Page title pattern for Portuguese Wikipedia
+    # Using "Lista de municípios de Portugal por distrito" page pattern
     "page_title_pattern": "Lista_de_municípios_do_distrito_de_{region}",
     "default_region_pattern": "{region}",
 
-    # Region mappings for special cases
+    # Region mappings for special cases (Portuguese articles and alternate pages)
     "region_page_mappings": {
+        # Standard districts
+        "Aveiro": "Aveiro",
+        "Beja": "Beja",
+        "Braga": "Braga",
+        "Bragança": "Bragança",
+        "Castelo Branco": "Castelo_Branco",
+        "Coimbra": "Coimbra",
+        "Évora": "Évora",
+        "Faro": "Faro",
+        "Guarda": "Guarda",
+        "Leiria": "Leiria",
+        "Lisboa": "Lisboa",
+        "Portalegre": "Portalegre",
+        "Porto": "Porto",
+        "Santarém": "Santarém",
+        "Setúbal": "Setúbal",
+        "Viana do Castelo": "Viana_do_Castelo",
+        "Vila Real": "Vila_Real",
+        "Viseu": "Viseu",
+        # Autonomous regions (special pages)
         "Região Autónoma dos Açores": "Lista_de_municípios_dos_Açores",
         "Região Autónoma da Madeira": "Lista_de_municípios_da_Madeira",
     },
