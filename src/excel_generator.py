@@ -122,39 +122,54 @@ class ExcelGenerator:
         Calculate equipment data for each municipality
 
         Logic:
-        - If population < 2000 (Rural):
+        - If population <= 2000 (Rural):
             - HAB RURAL = 100% of population
             - HAB URBAN = empty
-            - EQUIPOS RURAL = population / 50
+            - EQUIPOS RURAL = population / 51
             - EQUIPOS URBAN = 0
 
-        - If population >= 2000 (Urban):
-            - HAB RURAL = 2000 (fixed minimum)
-            - HAB URBAN = population - 2000
-            - EQUIPOS RURAL = 2000 / 50 = 40
-            - EQUIPOS URBAN = hab_urban / 300
-
-        - TOTAL EQUIPOS = EQUIPOS URBAN + EQUIPOS RURAL
+        - If population > 2000 (Urban):
+            - Fixed base: 2000 (fijo) -> base_equipos = 2000 / 51
+            - Excess population (population - 2000) is distributed by IA ratio:
+                - HAB URBAN = excess * urban_percentage
+                - HAB RURAL (extra) = excess * (1 - urban_percentage)
+            - EQUIPOS URBAN = hab_urban / 301
+            - EQUIPOS RURAL (extra) = hab_rural_extra / 51
+            - TOTAL EQUIPOS = base_equipos + equipos_urban + equipos_rural_extra
         """
         processed = []
 
         for m in municipalities:
             population = m.get('population') or 0
             name = m.get('name', '')
+            # Get IA classification ratio (urban_percentage), default to config value
+            urban_percentage = m.get('urban_percentage', DEFAULT_URBAN_PERCENTAGE)
 
-            # Determine if urban or rural based on threshold
-            is_urban = population >= POPULATION_THRESHOLD
+            # Determine if exceeds threshold
+            exceeds_threshold = population > POPULATION_THRESHOLD
 
-            if is_urban:
-                # Urban municipality: fixed 2000 for rural, rest is urban
-                hab_rural = MIN_RURAL_POPULATION  # Fixed 2000
-                hab_urban = population - MIN_RURAL_POPULATION
+            if exceeds_threshold:
+                # Population > 2000: Apply IA ratio to excess population
+                excess_population = population - MIN_RURAL_POPULATION  # population - 2000
 
-                # Calculate equipment with different divisors
-                equipos_rural = round(hab_rural / EQUIPMENT_DIVISOR_RURAL, 2)
-                equipos_urban = round(hab_urban / EQUIPMENT_DIVISOR_URBAN, 2)
+                # Distribute excess by IA ratio
+                hab_urban = round(excess_population * urban_percentage)
+                hab_rural_extra = round(excess_population * (1 - urban_percentage))
+                hab_rural = MIN_RURAL_POPULATION + hab_rural_extra  # 2000 + extra rural
+
+                # Calculate equipment
+                # Base: fixed 2000 / 51
+                base_equipos = MIN_RURAL_POPULATION / EQUIPMENT_DIVISOR_RURAL
+                # Urban portion: / 301
+                equipos_urban = hab_urban / EQUIPMENT_DIVISOR_URBAN
+                # Rural extra portion: / 51
+                equipos_rural_extra = hab_rural_extra / EQUIPMENT_DIVISOR_RURAL
+
+                # Total = base + urban + rural_extra
+                equipos_rural = round(base_equipos + equipos_rural_extra, 2)
+                equipos_urban = round(equipos_urban, 2)
             else:
-                # Rural municipality: 100% goes to rural
+                # Population <= 2000: 100% rural (fixed)
                 hab_urban = None  # Empty cell
                 hab_rural = population
 
@@ -301,14 +316,15 @@ def main():
     """Test the Excel generator"""
     generator = ExcelGenerator()
 
-    # Test data (matching client's examples)
+    # Test data with IA classification ratios (urban_percentage)
+    # urban_percentage: ratio from IA classification (e.g., 0.7 = 70% urbano, 30% rural)
     test_municipalities = [
-        {'name': 'Tudela', 'population': 37008},      # Urban
-        {'name': 'Tafalla', 'population': 10582},     # Urban
-        {'name': 'Sartaguda', 'population': 1287},    # Rural
-        {'name': 'Sesma', 'population': 1149},        # Rural
-        {'name': 'Sorlada', 'population': 51},        # Rural
-        {'name': 'Ulzama', 'population': 1669},       # Rural
+        {'name': 'Tudela', 'population': 37008, 'urban_percentage': 0.70},      # > 2000, 70% urbano
+        {'name': 'Tafalla', 'population': 10582, 'urban_percentage': 0.80},     # > 2000, 80% urbano
+        {'name': 'Sartaguda', 'population': 1287},    # <= 2000, 100% rural
+        {'name': 'Sesma', 'population': 1149},        # <= 2000, 100% rural
+        {'name': 'Sorlada', 'population': 51},        # <= 2000, 100% rural
+        {'name': 'Ulzama', 'population': 1669},       # <= 2000, 100% rural
     ]
 
     generator.create_both_excels(test_municipalities)
@@ -316,6 +332,13 @@ def main():
     print(f"Urban divisor: {EQUIPMENT_DIVISOR_URBAN}")
     print(f"Rural divisor: {EQUIPMENT_DIVISOR_RURAL}")
     print(f"Default urban %: {DEFAULT_URBAN_PERCENTAGE * 100}%")
+    print("\nNew Logic:")
+    print("- Population <= 2000: 100% rural, equipos = population / 51")
+    print("- Population > 2000:")
+    print("  - Base 2000 (fijo) -> base_equipos = 2000 / 51")
+    print("  - Excess distributed by IA ratio (urbano/rural)")
+    print("  - Urbano: excess * urban% / 301")
+    print("  - Rural extra: excess * rural% / 51")
 
 
 if __name__ == "__main__":

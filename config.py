@@ -25,7 +25,7 @@ BASE_DIR = get_base_path()
 DATA_DIR = os.path.join(get_app_path(), "data")
 
 # Classification threshold
-POPULATION_THRESHOLD = 2000  # Below this = 100% Rural, Above = Fixed 2000 Rural + rest Urban
+POPULATION_THRESHOLD = 2000  # <= 2000 = 100% Rural, > 2000 = Fixed 2000 base + excess distributed by IA ratio
 
 # Minimum rural population for urban municipalities
 MIN_RURAL_POPULATION = 2000  # Fixed rural population when total >= threshold
@@ -65,8 +65,8 @@ SPANISH_PROVINCES = [
 ]
 
 # Equipment calculation divisors (different for urban and rural)
-EQUIPMENT_DIVISOR_URBAN = 300  # Urban: Population / 300
-EQUIPMENT_DIVISOR_RURAL = 50   # Rural: Population / 50
+EQUIPMENT_DIVISOR_URBAN = 301  # Urban: Population / 301
+EQUIPMENT_DIVISOR_RURAL = 51   # Rural: Population / 51
 
 # Default urban percentage for municipalities classified as urban
 # (used when exact data is not available)
