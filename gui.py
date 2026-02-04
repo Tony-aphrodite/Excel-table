@@ -23,6 +23,7 @@ from config import (
 )
 from countries import get_country_config, get_available_countries
 from src.scraper import WikipediaScraper
+from src.wikidata_scraper import WikidataScraper
 from src.excel_generator import ExcelGenerator
 from src.word_generator import WordGenerator
 
@@ -237,24 +238,56 @@ class MunicipalityGeneratorGUI:
                 )
                 return
 
-            self.update_status(f"Descargando datos de Wikipedia ({country_name})...")
-            scraper = WikipediaScraper(country_config=country_config)
-
-            total_regions = len(country_config.get("regions", []))
+            # Try both Wikidata and Wikipedia, use the one with more results
+            municipalities = []
 
             # Thread-safe progress update function
-            def do_progress_update(p, c, t, r, cnt):
+            def do_progress_update(p, msg):
                 self.progress_var.set(p)
-                self.status_var.set(f"[{c}/{t}] {r}... ({cnt} municipios)")
+                self.status_var.set(msg)
                 self.root.update_idletasks()
 
-            def progress_callback(current, total, region):
-                progress = (current / total) * 70
-                count = len(scraper.municipalities) if hasattr(scraper, 'municipalities') else 0
-                # Schedule GUI update on main thread
-                self.root.after(0, lambda: do_progress_update(progress, current, total, region, count))
+            # Try Wikidata first
+            wikidata_municipalities = []
+            try:
+                self.update_status(f"Probando Wikidata ({country_name})...")
+                wikidata_scraper = WikidataScraper(country_config=country_config)
 
-            municipalities = scraper.scrape_all_municipalities(progress_callback=progress_callback)
+                def wikidata_progress(current, total, msg):
+                    progress = min((current / max(total, 1)) * 35, 35)
+                    self.root.after(0, lambda: do_progress_update(progress, f"Wikidata: {current} municipios..."))
+
+                wikidata_municipalities = wikidata_scraper.scrape_all_municipalities(progress_callback=wikidata_progress)
+                self.update_status(f"Wikidata: {len(wikidata_municipalities)} municipios")
+            except Exception as e:
+                print(f"Wikidata error: {e}")
+
+            # Also try Wikipedia
+            wiki_municipalities = []
+            try:
+                self.update_status(f"Descargando de Wikipedia ({country_name})...")
+                scraper = WikipediaScraper(country_config=country_config)
+                total_regions = len(country_config.get("regions", []))
+
+                def wiki_progress_callback(current, total, region):
+                    progress = 35 + (current / total) * 35
+                    count = len(scraper.municipalities) if hasattr(scraper, 'municipalities') else 0
+                    self.root.after(0, lambda: do_progress_update(progress, f"Wikipedia [{current}/{total}] {region}... ({count})"))
+
+                wiki_municipalities = scraper.scrape_all_municipalities(progress_callback=wiki_progress_callback)
+                self.update_status(f"Wikipedia: {len(wiki_municipalities)} municipios")
+            except Exception as e:
+                print(f"Wikipedia error: {e}")
+
+            # Use the source with more results
+            if len(wikidata_municipalities) >= len(wiki_municipalities):
+                municipalities = wikidata_municipalities
+                source = "Wikidata"
+            else:
+                municipalities = wiki_municipalities
+                source = "Wikipedia"
+
+            self.update_status(f"Usando {source}: {len(municipalities)} municipios")
             self.collected_municipalities = municipalities
 
             # Check if we got any data
